@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "multislope-nmf"
+version = "0.1.0"
+description = "Physically constrained IS-NMF/SAGE for multi-slope room-acoustic decay estimation."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Jeremy Bai" }]
+license = { text = "MIT" }
+dependencies = [
+    "numpy>=1.23",
+    "scipy>=1.10",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=7.0"]
+examples = ["matplotlib>=3.7"]
+
+[tool.setuptools]
+packages = ["multislope_nmf"]
