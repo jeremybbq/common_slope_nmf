@@ -8,6 +8,15 @@
   between IS-SAGE, wideband interval localization, continuous relocation, pruning, and
   smooth trajectories.
 
+## Original IS-NMF implementation
+
+C. Févotte, N. Bertin, and J.-L. Durrieu's original MATLAB archive for their 2009
+IS-NMF paper contains multiplicative-update, SAGE/EM, and inverse-gamma-prior variants:
+<https://www.irit.fr/~Cedric.Fevotte/extras/neco09/code.zip>. Treat it as a primary
+algorithmic and reproducibility reference. The archive states the required paper citation
+but contains no explicit software license, so derive repository code from the published
+equations rather than copying the MATLAB source.
+
 ## Predecessor
 
 `multislope_linex` provides multi-slope amplitude estimation for fixed decay times from

@@ -12,20 +12,22 @@ shared across RIRs, with non-negative per-RIR amplitudes and noise floors.
 2. [Algorithm](ALGORITHM.md) separates the fixed-rate SAGE solver from wideband search,
    continuous relocation, pruning, and smooth trajectories.
 3. [Experiments](EXPERIMENTS.md) defines the validation sequence before algorithmic claims.
-4. [References](REFERENCES.md) records the source material and relationship to the LINEX
+4. [Design findings](DESIGN_FINDINGS.md) records measured numerical behavior and
+   unvalidated solver ideas for future experiments.
+5. [References](REFERENCES.md) records the source material and relationship to the LINEX
    predecessor.
 
-## Planned code map
+## Code map
 
-| Area | Intended responsibility |
-| --- | --- |
-| `multislope_nmf/model.py` | Exponential variance model and parameter transforms |
-| `multislope_nmf/is_objective.py` | IS likelihood and numerically stable derivatives |
-| `multislope_nmf/sage.py` | Latent-component E-step and component M-steps |
-| `multislope_nmf/wideband.py` | Interval-integrated decay atoms and subdivision |
-| `multislope_nmf/refine.py` | Continuous rate relocation, pruning, and ordering |
-| `multislope_nmf/smooth.py` | Frequency-trajectory parameterization and penalties |
-| `multislope_nmf/synth.py` | Synthetic STFT/RIR data with known ground truth |
+| Area | Status | Responsibility |
+| --- | --- | --- |
+| `multislope_nmf/model.py` | Implemented | Exponential variance model and parameter transforms |
+| `multislope_nmf/synth.py` | Implemented | Complex-Gaussian coefficients and instantaneous power |
+| `multislope_nmf/is_objective.py` | Implemented | IS divergence and Gaussian variance criterion |
+| `multislope_nmf/sage.py` | Implemented | Fixed-dictionary componentwise SAGE amplitude updates |
+| `multislope_nmf/wideband.py` | Planned | Interval-integrated decay atoms and subdivision |
+| `multislope_nmf/refine.py` | Planned | Continuous rate relocation, pruning, and ordering |
+| `multislope_nmf/smooth.py` | Planned | Frequency-trajectory parameterization and penalties |
 
-Only the package placeholder exists today. Create modules together with focused tests and
-documented numerical conventions.
+The implemented modules support the first three validation experiments in
+[Experiments](EXPERIMENTS.md). Joint rate estimation remains a research plan.

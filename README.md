@@ -26,20 +26,21 @@ equivalently the working complex-Gaussian variance likelihood.
 ## Documentation
 
 The documentation map, model definition, algorithm plan, experimental protocol, and
-references are collected in [docs/INDEX.md](docs/INDEX.md). These documents define the
-research direction; they are not yet a validated implementation.
+references are collected in [docs/INDEX.md](docs/INDEX.md). The forward model and synthetic
+generator are validated, together with fixed-rate amplitude and floor estimation.
 
 ## Repository layout
 
 ```text
-multislope_nmf/    Future importable implementation
-tests/             Future deterministic and recovery tests
-examples/          Future reproducible analyses and figures
+multislope_nmf/    Importable model, objective, synthesis, and SAGE utilities
+tests/             Deterministic convention, recovery, and statistical tests
+examples/          Reproducible validation analyses and figures
 docs/              Research specification and project index
 ```
 
 ## Status
 
-The repository intentionally contains only the project structure and research index.
-The first implementation milestone is a fixed-rate IS baseline with synthetic recovery
-tests, followed by wideband localization and continuous rate refinement.
+The energy-decay convention, complex-Gaussian observation generator, IS objective, and
+fixed-rate SAGE baseline are implemented with focused tests. The next milestone is
+single-frequency rate profiling and small-component-count enumeration, followed by
+wideband localization and continuous rate refinement.
