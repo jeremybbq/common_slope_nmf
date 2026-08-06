@@ -8,7 +8,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-from multislope_nmf import (
+from common_slope_nmf import (
     exponential_variance,
     sample_complex_gaussian,
     t60_to_rate,
