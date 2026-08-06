@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from scipy.optimize import minimize
 
-from multislope_nmf import (
+from common_slope_nmf import (
     exponential_atoms,
     fixed_dictionary_sage,
     gaussian_variance_nll,

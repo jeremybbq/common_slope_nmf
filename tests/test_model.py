@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from multislope_nmf.model import (
+from common_slope_nmf.model import (
     exponential_atoms,
     exponential_variance,
     rate_to_t60,

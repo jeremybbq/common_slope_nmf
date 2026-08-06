@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from multislope_nmf.synth import sample_complex_gaussian, sample_power
+from common_slope_nmf.synth import sample_complex_gaussian, sample_power
 
 
 def test_complex_gaussian_power_has_calibrated_exponential_statistics():

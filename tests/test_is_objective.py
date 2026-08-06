@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from multislope_nmf.is_objective import (
+from common_slope_nmf.is_objective import (
     gaussian_variance_nll,
     is_divergence,
 )
