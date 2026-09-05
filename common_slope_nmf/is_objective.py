@@ -104,9 +104,8 @@ def is_divergence(
     power, variance = _broadcast_power_and_variance(
         observed_power, model_variance, require_positive_power=True
     )
-    ratio = power / variance
-    offset = ratio - 1.0
-    values = offset - np.log1p(offset)
+    log_ratio = np.log(power) - np.log(variance)
+    values = np.expm1(log_ratio) - log_ratio
     return _reduce(values, reduction)
 
 

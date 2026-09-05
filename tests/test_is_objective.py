@@ -34,6 +34,18 @@ def test_is_divergence_and_gaussian_nll_differ_only_by_data_term():
     ) == pytest.approx(np.mean(np.log(variance) + power / variance))
 
 
+def test_is_divergence_remains_finite_for_extreme_small_ratio():
+    power = np.array([1e-300, 1e-200])
+    variance = np.array([1.0, 1e100])
+
+    divergence = is_divergence(power, variance, reduction="none")
+
+    expected_log_ratio = np.log(power) - np.log(variance)
+    expected = np.expm1(expected_log_ratio) - expected_log_ratio
+    np.testing.assert_allclose(divergence, expected, rtol=1e-15)
+    assert np.all(np.isfinite(divergence))
+
+
 def test_objectives_broadcast_and_none_reduction_preserves_shape():
     power = np.array([[1.0, 2.0], [0.5, 0.25]])
     variance = np.array([0.8, 1.5])
