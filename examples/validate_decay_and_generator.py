@@ -13,6 +13,8 @@ from common_slope_nmf import (
     sample_complex_gaussian,
     t60_to_rate,
 )
+from common_slope_nmf import plotting as decay_plots
+from examples._run_output import create_run_output_dir
 
 SEED = 20260724
 
@@ -20,10 +22,10 @@ SEED = 20260724
 def _arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--output",
+        "--output-root",
         type=Path,
-        default=Path("experiment_01_02_validation.png"),
-        help="Destination for the validation figure.",
+        default=Path("output"),
+        help="Root directory for the timestamped run directory.",
     )
     parser.add_argument(
         "--show",
@@ -37,6 +39,8 @@ def main() -> None:
     """Run both validation experiments and save their diagnostic figure."""
 
     args = _arguments()
+    output_dir = create_run_output_dir(args.output_root)
+    output_path = output_dir / "experiment_01_02_validation.png"
 
     t60_s = 0.6
     times_s = np.arange(121, dtype=np.float64) * 0.01
@@ -54,69 +58,16 @@ def main() -> None:
     powers = np.abs(coefficients) ** 2
     normalized_power = powers / target_variances
 
-    figure, axes = plt.subplots(1, 3, figsize=(13.5, 4.0))
-
-    axes[0].plot(times_s, normalized_db, linewidth=2)
-    axes[0].axvline(t60_s, color="tab:red", linestyle="--", linewidth=1)
-    axes[0].axhline(-60.0, color="tab:red", linestyle="--", linewidth=1)
-    axes[0].scatter([t60_s], [-60.0], color="tab:red", zorder=3)
-    axes[0].set(
-        title="Energy-decay convention",
-        xlabel="Elapsed time (s)",
-        ylabel="Relative variance (dB)",
-        ylim=(-125.0, 5.0),
+    figure = decay_plots.plot_generator_validation(
+        times_s, normalized_db, t60_s, normalized_power,
+        target_variances, np.mean(powers, axis=0),
     )
-    axes[0].grid(alpha=0.25)
-
-    histogram_values = normalized_power[:, 0]
-    axes[1].hist(
-        histogram_values,
-        bins=100,
-        range=(0.0, 7.0),
-        density=True,
-        alpha=0.65,
-        label="Empirical",
-    )
-    z = np.linspace(0.0, 7.0, 400)
-    axes[1].plot(z, np.exp(-z), linewidth=2, label="Exp(1)")
-    axes[1].set(
-        title=r"Normalized power $Y/V$",
-        xlabel=r"$Y/V$",
-        ylabel="Density",
-    )
-    axes[1].legend()
-    axes[1].grid(alpha=0.25)
-
-    empirical_mean = np.mean(powers, axis=0)
-    axes[2].loglog(
-        target_variances,
-        empirical_mean,
-        "o",
-        markersize=7,
-        label="Empirical mean",
-    )
-    axes[2].loglog(
-        target_variances,
-        target_variances,
-        linestyle="--",
-        label="Identity",
-    )
-    axes[2].set(
-        title="Power calibration",
-        xlabel="Requested variance",
-        ylabel="Mean sampled power",
-    )
-    axes[2].legend()
-    axes[2].grid(alpha=0.25, which="both")
-
-    figure.tight_layout()
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    figure.savefig(args.output, dpi=180)
+    decay_plots.save_figure(figure, output_dir, output_path.name, show=args.show)
 
     print(f"seed={SEED}")
     print(f"T60 crossing={normalized_db[60]:.12f} dB")
     print(f"mean(Y/V)={np.mean(normalized_power, axis=0)}")
-    print(f"saved={args.output.resolve()}")
+    print(f"saved={output_path.resolve()}")
 
     if args.show:
         plt.show()

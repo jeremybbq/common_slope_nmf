@@ -1,4 +1,4 @@
-"""Validate fixed-rate IS-SAGE amplitude and noise-floor estimation."""
+"""Validate supplied-atom IS-SAGE amplitude and floor estimation."""
 
 from __future__ import annotations
 
@@ -11,12 +11,14 @@ from scipy.optimize import minimize
 
 from common_slope_nmf import (
     exponential_atoms,
-    fixed_dictionary_sage,
+    amplitude_sage,
     gaussian_variance_nll,
     is_divergence,
     sample_power,
     t60_to_rate,
 )
+from common_slope_nmf import plotting as decay_plots
+from examples._run_output import create_run_output_dir
 
 SEED = 20260724
 COMPONENT_LABELS = ("fast decay", "slow decay", "noise floor")
@@ -37,10 +39,10 @@ def _arguments() -> argparse.Namespace:
         help="Maximum SAGE sweeps for the stochastic batch.",
     )
     parser.add_argument(
-        "--output",
+        "--output-root",
         type=Path,
-        default=Path("experiment_03_fixed_rate_sage.png"),
-        help="Destination for the validation figure.",
+        default=Path("output"),
+        help="Root directory for the timestamped run directory.",
     )
     parser.add_argument(
         "--show",
@@ -107,15 +109,17 @@ def _scipy_reference(observed_power, dictionary):
 
 
 def main() -> None:
-    """Run deterministic and stochastic fixed-rate validation."""
+    """Run deterministic and stochastic supplied-atom validation."""
 
     args = _arguments()
+    output_dir = create_run_output_dir(args.output_root)
+    output_path = output_dir / "experiment_03_fixed_rate_sage.png"
     times_s, dictionary, true_amplitudes = _experiment_case()
     true_variance = true_amplitudes @ dictionary
 
     single_dictionary = dictionary[1:2]
     single_amplitudes = np.array([[0.2], [0.5], [1.0], [2.0]])
-    single_result = fixed_dictionary_sage(
+    single_result = amplitude_sage(
         single_amplitudes @ single_dictionary,
         single_dictionary,
         initial_amplitudes=np.full_like(single_amplitudes, 7.0),
@@ -125,7 +129,7 @@ def main() -> None:
 
     deterministic_results = {}
     for scale in (0.1, 1.0, 10.0):
-        deterministic_results[scale] = fixed_dictionary_sage(
+        deterministic_results[scale] = amplitude_sage(
             true_variance,
             dictionary,
             initial_amplitudes=np.full_like(true_amplitudes, scale),
@@ -141,7 +145,7 @@ def main() -> None:
     test_power = sample_power(
         true_variance, rng=rng, n_realizations=args.seeds
     )
-    stochastic_result = fixed_dictionary_sage(
+    stochastic_result = amplitude_sage(
         train_power.reshape(-1, times_s.size),
         dictionary,
         max_iter=args.max_iter,
@@ -175,77 +179,13 @@ def main() -> None:
         train_power[0], first_sage_variance
     ) - is_divergence(train_power[0], scipy_variance)
 
-    figure, axes = plt.subplots(
-        2, 2, figsize=(13.5, 9.0), constrained_layout=True
+    figure = decay_plots.plot_fixed_rate_validation(
+        [result.objective_history for result in deterministic_results.values()],
+        [f"initial amplitude {scale:g}" for scale in deterministic_results],
+        true_amplitudes, deterministic_result.amplitudes,
+        log_parameter_ratio, COMPONENT_LABELS, heldout_excess_nll,
     )
-
-    for scale, result in deterministic_results.items():
-        objective = np.maximum(
-            result.objective_history, np.finfo(np.float64).tiny
-        )
-        axes[0, 0].semilogy(
-            np.arange(objective.size),
-            objective,
-            label=f"initial amplitude {scale:g}",
-        )
-    axes[0, 0].set(
-        title="Exact-data SAGE convergence",
-        xlabel="Complete component sweeps",
-        ylabel="Summed IS divergence",
-    )
-    axes[0, 0].legend()
-    axes[0, 0].grid(alpha=0.25)
-
-    axes[0, 1].loglog(
-        true_amplitudes.ravel(),
-        deterministic_result.amplitudes.ravel(),
-        "o",
-        label="SAGE estimates",
-    )
-    limits = (1e-6, 2.0)
-    axes[0, 1].loglog(limits, limits, "--", label="Identity")
-    axes[0, 1].set(
-        title="Exact amplitudes and floors",
-        xlabel="True variance amplitude",
-        ylabel="Estimated variance amplitude",
-        xlim=limits,
-        ylim=limits,
-    )
-    axes[0, 1].legend()
-    axes[0, 1].grid(alpha=0.25, which="both")
-
-    boxplot_values = [
-        log_parameter_ratio[:, :, index].ravel()
-        for index in range(dictionary.shape[0])
-    ]
-    axes[1, 0].boxplot(
-        boxplot_values,
-        labels=COMPONENT_LABELS,
-        showfliers=False,
-    )
-    axes[1, 0].axhline(0.0, color="black", linestyle="--", linewidth=1)
-    axes[1, 0].set(
-        title=f"Sampling uncertainty over {args.seeds} seeds",
-        ylabel=r"$\log_{10}(\widehat{a}/a)$",
-    )
-    axes[1, 0].grid(alpha=0.25, axis="y")
-
-    axes[1, 1].hist(
-        heldout_excess_nll,
-        bins=30,
-        alpha=0.75,
-        color="tab:purple",
-    )
-    axes[1, 1].axvline(0.0, color="black", linestyle="--", linewidth=1)
-    axes[1, 1].set(
-        title="Held-out score relative to true variance",
-        xlabel="Mean held-out NLL difference",
-        ylabel="Seed count",
-    )
-    axes[1, 1].grid(alpha=0.25)
-
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    figure.savefig(args.output, dpi=180)
+    decay_plots.save_figure(figure, output_dir, output_path.name, show=args.show)
 
     single_error = np.max(
         np.abs(single_result.amplitudes - single_amplitudes)
@@ -287,7 +227,7 @@ def main() -> None:
         "first_seed_scipy_amplitudes="
         f"{np.array2string(scipy_amplitudes, precision=4)}"
     )
-    print(f"saved={args.output.resolve()}")
+    print(f"saved={output_path.resolve()}")
 
     if args.show:
         plt.show()
