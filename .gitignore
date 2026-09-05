@@ -9,3 +9,14 @@ dist/
 *.egg-info/
 *.mat
 *.onnx
+data/
+output/
+latex/*.aux
+latex/*.fdb_latexmk
+latex/*.fls
+latex/*.log
+latex/*.nav
+latex/*.out
+latex/*.snm
+latex/*.synctex.gz
+latex/*.toc

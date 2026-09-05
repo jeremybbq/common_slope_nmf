@@ -26,6 +26,36 @@ a constant floor atom, 121 frames from `0` to `1.2 s`, and four amplitude rows.
 These values describe the current synthetic configuration and seed `20260724`.
 They are regression evidence rather than general performance claims.
 
+## Known-decay STFT-shaped evidence
+
+Experiment 4 uses 512 independent abstract bins, 374 frames over a 2 s signal
+configuration at 24 kHz with a 256-sample frame and 128-sample hop, and an energy
+`T60 = 1 s` decay with unit variance amplitude. The exact-model draws use seed
+`20260724`.
+
+- Without a floor, SAGE agreed exactly with the analytic maximum-likelihood estimate
+  `mean_n(Y/D)` to the displayed floating-point precision. Across bins, the estimated
+  amplitude mean was `0.998835` and its standard deviation was `0.052411`, compared
+  with the exact values `1` and `1/sqrt(374) = 0.051709`. Exact per-bin 95% confidence
+  intervals covered the generating amplitude in `0.953125` of the bins.
+- With an unknown `-30 dB` variance floor (`b = 0.001`), the fitted decay amplitudes
+  had mean `1.003392` and standard deviation `0.109196`. The fitted floors had mean
+  `0.00100408` and standard deviation `0.00006119`. Inverse Fisher information at
+  the generating parameters predicts standard deviations `0.111794` and `0.00006156`,
+  respectively.
+- With an unknown `-60 dB` variance floor (`b = 1e-6`), the fitted decay amplitudes
+  had mean `0.997027` and standard deviation `0.075861`. The fitted floors had mean
+  `9.93182e-7` and standard deviation `7.63553e-8`; Fisher-predicted standard
+  deviations were `0.075950` and `7.63888e-8`.
+- Every decay amplitude was initialized at `0.25`; the fitted floors in both noisy
+  conditions were initialized at `0.01`. The no-floor, `-30 dB`, and `-60 dB` runs met
+  the objective stopping rule after 2, 56, and 34 complete sweeps, respectively. Their
+  summed IS objectives were non-increasing at every recorded sweep.
+
+This experiment validates fixed-rate amplitude and floor inference when data are drawn
+from the working likelihood. It does not validate rate estimation, STFT independence for
+real waveforms, or robustness to model mismatch.
+
 ## Why weak components are slow
 
 For component variance `C`, total variance `V`, and SAGE gain `G = C / V`, a weak
@@ -46,6 +76,16 @@ The experiments currently establish the symptom and the proximity to an independ
 optimum. They do not yet isolate the convergence factor of each mechanism.
 
 ## Consequences for stopping and reporting
+
+On the saved one-frequency `rho**2` trajectory from experiment 7, the first relative
+objective-decrease gates at `1e-4`, `1e-5`, and `1e-6` occurred at sweeps 31, 45, and 67.
+The corresponding sorted absolute `T60` errors were approximately `[0.110, 0.075] s`,
+`[0.014, 0.037] s`, and `[0.019, 0.017] s`. On this run, `1e-4` was visibly too loose,
+while `1e-6` avoided the old `1e-10` setting's impractically long tail without materially
+changing the recovered rates. The decay-estimator API therefore uses `1e-6` as its
+pragmatic default. This single trajectory does not make it a universal accuracy
+guarantee; experiment 10 records parameter errors and rate histories at that gate over
+100 newly sampled pairs.
 
 A small change in the summed objective is insufficient as the only stopping rule.
 Future solvers should record:
@@ -77,7 +117,7 @@ These are experiment candidates, not validated replacements:
 - Test safeguarded fixed-point acceleration such as SQUAREM, Anderson acceleration,
   or over-relaxation, accepting accelerated steps only when the IS objective does
   not increase.
-- Compare the published IS-NMF multiplicative update as another fixed-dictionary
+- Compare the published IS-NMF multiplicative update as another supplied-atom
   baseline.
 - Precondition the amplitude coordinates using atom means or norms, while converting
   results back to unit-origin physical amplitudes.

@@ -17,6 +17,16 @@ algorithmic and reproducibility reference. The archive states the required paper
 but contains no explicit software license, so derive repository code from the published
 equations rather than copying the MATLAB source.
 
+## Fixed-point acceleration
+
+R. Varadhan and C. Roland, “Simple and Globally Convergent Methods for Accelerating the
+Convergence of Any EM Algorithm,” *Scandinavian Journal of Statistics*, vol. 35, no. 2,
+pp. 335--353, 2008. <https://doi.org/10.1111/j.1467-9469.2007.00585.x>.
+
+The package's SQUAREM functions use the paper's first-order S3 squared extrapolation with
+ordinary SAGE sweeps as the fixed-point map. Feasibility checks, a stabilizing sweep, and
+strict original-IS-objective acceptance retain an ordinary two-sweep SAGE fallback.
+
 ## Predecessor
 
 `multislope_linex` provides multi-slope amplitude estimation for fixed decay times from
