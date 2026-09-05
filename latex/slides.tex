@@ -1,0 +1,190 @@
+\documentclass{beamer}
+\usepackage{graphicx}
+\usepackage{geometry}
+
+\begin{document}
+
+\begin{frame}[allowframebreaks]{Recap}
+
+\textbf{Observe:} complex STFT coefficient \(X_{rn}\) and its power
+\(Y_{rn} = \lvert X_{rn} \rvert^2\) \linebreak
+
+\textbf{Model:}
+\[
+X_{rn} \sim \text{i.i.d. }\mathcal{CN}(0, V_{rn}),
+\qquad
+V_{rn} = \sum_{k \in \mathcal{K}} a_{rk} e^{-\lambda_k \tau_n}.
+\]
+
+In latent variable form,
+\[
+X_{rn} = \sum_{k \in \mathcal{K}} Z_{rnk},
+\quad
+Z_{rnk} \sim \text{i.i.d. }\mathcal{CN}(0, v_{rnk}),
+\quad
+v_{rnk} = a_{rk} e^{-\lambda_k \tau_n}.
+\]
+
+\textbf{Loss:} negative log-likelihood
+\[
+\mathcal{L} = \sum_{rn} \left(\log V_{rn} + \frac{Y_{rn}}{V_{rn}}\right) \sim d_{\text{IS}}(Y | V).
+\]  
+
+\framebreak
+
+% \clearpage
+% \newgeometry{left=0pt,right=0pt}
+
+% \thispagestyle{empty}
+% \noindent
+
+\noindent
+\hspace*{-\dimexpr 1in+\hoffset+\oddsidemargin\relax}%
+\includegraphics[width=\paperwidth]{../output/2026-08-17_09-25-00-936640/multislope_rho_m0p80_init_2p00_2p00_observed_true_estimated_variance.png}
+
+% \restoregeometry
+
+\framebreak
+
+Wiener-ratio of slope \(k\), at frame \(n\) in RIR \(r\),
+\[
+\rho_{rnk} = \frac{v_{rnk}}{V_{rn}}.
+\]
+
+Posterior energy \(\mathbb{E}\!\left[\lvert Z_{rnk}\rvert^2 \mid X_{rn}\right]\) is given by
+\[
+S_{rnk} = \left(\frac{v_{rnk}}{V_{rn}}\right)^2 Y_{rn}
++ \left(1 - \frac{v_{rnk}}{V_{rn}}\right)v_{rnk}.
+\]
+
+From this we build the surrogate loss function
+\[
+\mathcal{Q}_k = \sum_{rn} \left(\log v_{rnk} + \frac{S_{rnk}}{v_{rnk}}\right),
+\]
+which gives the close form solution for \(a_{rk}\), which further makes the update of \(\lambda_k\) a convex optimization problem - \textcolor{red}{SAGE}.
+
+\end{frame}
+
+\begin{frame}{Posterior energy}
+
+Rewrite
+\[
+S_{rnk} = \left(\frac{v_{rnk}}{V_{rn}}\right)^2 Y_{rn}
++ \left(1 - \frac{v_{rnk}}{V_{rn}}\right)v_{rnk}
+\]
+to
+\begin{align*}
+   S_{rnk} &= \underbrace{v_{rnk}}_{prior} + \underbrace{\left(\frac{v_{rnk}}{V_{rn}}\right)^2 (Y_{rn} - V_{rn})}_{posterior\ update} \\
+    &= v_{rnk} + \rho_{rnk}^2 \, \epsilon_{rn}.
+\end{align*}
+
+Only the part where \(\rho_{rnk}\) is large will contribute to loss, which in turn help move \(\lambda_k\) to the right direction. 
+
+\end{frame}
+
+\begin{frame}{Pseudo SAGE (?)}
+Adding weights to the surrogate loss,
+\[
+\mathcal{Q}_k = \sum_{rn} \textcolor{red}{\rho_{rnk}^p}
+\left(\log v_{rnk} + \frac{S_{rnk}}{v_{rnk}}\right).
+\]
+
+\begin{center}
+    This really works!
+\end{center}
+\end{frame}
+
+\begin{frame}[allowframebreaks]{Convergence}
+
+\textbf{Setup}
+
+\begin{itemize}
+\item Batch decay update over one frequency bin with \(K=2\) slope components and \(R=512\) RIRs with amplitudes sampled from joint Gaussian distribution.
+\item Both component \(T_{60}\) values are initialized at \(2.00\,\mathrm{s}\).
+\item The following pages show the \(T_{60}\) trajectories for three runs with \(p=0, 1, 2\).
+\item Convergence criteria: \(\lvert \lambda_k^{(i)} - \lambda_k^{(i-1)}\rvert < 10^{-6}\) for all \(k\).
+\item \textcolor{red}{No strict correspondence between the surrogate loss and the global loss.}
+\end{itemize}
+
+\framebreak
+
+\centering
+\begin{figure}
+    \includegraphics[height=0.7\textheight,keepaspectratio]{../output/2026-08-17_09-25-00-936640/multislope_rho_m0p80_init_2p00_2p00_t60_trajectories.png}
+    \caption{Native SAGE, - no weight in surrogate loss \(p=0\).}
+\end{figure}
+
+\framebreak
+
+\begin{figure}
+    \centering
+    \includegraphics[height=0.7\textheight,keepaspectratio]{../output/2026-08-17_12-27-55-103654/multislope_rho_m0p80_init_2p00_2p00_t60_trajectories.png}
+    \caption{Pseudo SAGE with \(p=1\).}
+\end{figure}
+
+\framebreak
+
+\begin{figure}
+    \centering
+    \includegraphics[height=0.7\textheight,keepaspectratio]{../output/2026-08-17_12-35-12-745307/multislope_rho_m0p80_init_2p00_2p00_t60_trajectories.png}
+    \caption{Pseudo SAGE with \(p=2\). \textcolor{red}{Notice the bigger bias!}}
+\end{figure}
+
+\end{frame}
+
+\begin{frame}[allowframebreaks]{Robustness to initialization}
+
+\textbf{Setup}
+
+\begin{itemize}
+\item Same data as previous setup: \(T_{60,1} = 1.042\,\mathrm{s}, T_{60,2} = 2.680\,\mathrm{s}\)
+\item Initialise with \(T_{60}\) pairs within \([0.50,\,3.00]\,\mathrm{s}\).
+\end{itemize}
+
+\framebreak
+
+\begin{figure}
+    \centering
+    \includegraphics[height=0.7\textheight,keepaspectratio]{../output/2026-08-24_15-12-11-738473/multislope_initial_t60_rho_p2_convergence_sweeps.png}
+    \caption{Sweeps needed for convergence at different initializations.}
+\end{figure}
+
+\framebreak
+
+\begin{figure}
+    \centering
+    \includegraphics[height=0.7\textheight,keepaspectratio]{../output/2026-08-24_15-12-11-738473/multislope_initial_t60_rho_p2_maximum_t60_error.png}
+    \caption{Decay sensitivity to initialization.}
+\end{figure}
+
+\framebreak
+
+\begin{figure}
+    \centering
+    \includegraphics[height=0.7\textheight,keepaspectratio]{../output/2026-08-24_15-12-11-738473/multislope_initial_t60_rho_p2_objective_excess.png}
+    \caption{Global loss is also compromised.}
+\end{figure}
+
+\end{frame}
+
+\begin{frame}[allowframebreaks]{Robustness to true \(\Delta T_{60}\)}
+
+\textbf{Setup}
+
+\begin{itemize}
+    \item For arbitrary frequency bins \(F=100\), generate \(R=512\) RIRs with two slope components with \(T_{60}\) values sampled from Dirichlet distribution.
+\end{itemize}
+
+\framebreak
+
+\begin{figure}
+    \centering
+    \includegraphics[height=0.7\textheight,keepaspectratio]{../output/2026-08-20_21-43-51-652331/t60_error_vs_separation.png}
+    \caption{Decay sensitivity to true \(\Delta T_{60}\) in synthetic data.}
+\end{figure}
+
+\end{frame}
+
+
+
+\end{document}
