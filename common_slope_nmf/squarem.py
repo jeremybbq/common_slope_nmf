@@ -34,6 +34,9 @@ class AmplitudeSQUAREMResult:
     objective_history
         Summed IS divergence at the initial state and after each retained
         accelerated or fallback state, shape ``(H,)``.
+    sweep_evaluation_history
+        Cumulative complete SAGE-sweep evaluations corresponding to
+        ``objective_history``, shape ``(H,)``. The initial state is zero.
     fixed_point_residual_history
         Maximum per-RIR relative Euclidean residual of one complete SAGE
         sweep, shape ``(D,)``. A residual is recorded whenever the first
@@ -56,6 +59,7 @@ class AmplitudeSQUAREMResult:
     amplitudes: NDArray[np.float64]
     variance: NDArray[np.float64]
     objective_history: NDArray[np.float64]
+    sweep_evaluation_history: NDArray[np.int64]
     fixed_point_residual_history: NDArray[np.float64]
     n_sweep_evaluations: int
     n_accepted_extrapolations: int
@@ -80,6 +84,9 @@ class DecaySQUAREMResult:
     objective_history
         Summed original IS divergence at the initial state and after every
         retained accelerated or fallback state, shape ``(H,)``.
+    sweep_evaluation_history
+        Cumulative complete decay-SAGE sweep-map evaluations corresponding
+        to ``objective_history``, shape ``(H,)``. The initial state is zero.
     rate_history_per_s
         Rates corresponding to ``objective_history``, shape ``(H, F, K)``,
         in inverse seconds.
@@ -102,6 +109,7 @@ class DecaySQUAREMResult:
     noise_floor: NDArray[np.float64]
     variance: NDArray[np.float64]
     objective_history: NDArray[np.float64]
+    sweep_evaluation_history: NDArray[np.int64]
     rate_history_per_s: NDArray[np.float64]
     fixed_point_residual_history: NDArray[np.float64]
     n_sweep_evaluations: int
@@ -223,6 +231,7 @@ def amplitude_squarem(
     variance = amplitudes @ temporal_atoms
     objective_rows = _rowwise_is_objective(power, variance)
     objective_history = [float(np.sum(objective_rows))]
+    sweep_evaluation_history = [0]
     residual_history: list[float] = []
     step_max = np.full(power.shape[0], initial_step_max, dtype=np.float64)
     n_sweep_evaluations = 0
@@ -248,6 +257,7 @@ def amplitude_squarem(
             variance = variance_1
             objective_rows = objective_1
             objective_history.append(float(np.sum(objective_rows)))
+            sweep_evaluation_history.append(n_sweep_evaluations)
             converged = True
             break
 
@@ -256,6 +266,7 @@ def amplitude_squarem(
             variance = variance_1
             objective_rows = objective_1
             objective_history.append(float(np.sum(objective_rows)))
+            sweep_evaluation_history.append(n_sweep_evaluations)
             break
 
         state_2, variance_2 = _amplitude_sage_sweep(
@@ -283,6 +294,7 @@ def amplitude_squarem(
                 step_max,
             )
             objective_history.append(float(np.sum(objective_rows)))
+            sweep_evaluation_history.append(n_sweep_evaluations)
             continue
 
         proposal = (
@@ -304,6 +316,7 @@ def amplitude_squarem(
             objective_rows = _rowwise_is_objective(power, variance)
             n_rejected += int(np.count_nonzero(attempted))
             objective_history.append(float(np.sum(objective_rows)))
+            sweep_evaluation_history.append(n_sweep_evaluations)
             break
 
         stabilized, stabilized_variance = _amplitude_sage_sweep(
@@ -323,6 +336,7 @@ def amplitude_squarem(
         variance[accepted] = stabilized_variance[accepted]
         objective_rows = _rowwise_is_objective(power, variance)
         objective_history.append(float(np.sum(objective_rows)))
+        sweep_evaluation_history.append(n_sweep_evaluations)
 
         hit_cap = raw_step >= step_max
         step_max = np.where(
@@ -340,6 +354,9 @@ def amplitude_squarem(
         amplitudes=amplitudes.copy(),
         variance=variance.copy(),
         objective_history=np.asarray(objective_history, dtype=np.float64),
+        sweep_evaluation_history=np.asarray(
+            sweep_evaluation_history, dtype=np.int64
+        ),
         fixed_point_residual_history=np.asarray(residual_history, dtype=np.float64),
         n_sweep_evaluations=n_sweep_evaluations,
         n_accepted_extrapolations=n_accepted,
@@ -560,6 +577,7 @@ def decay_squarem(
     variance += noise_floor[:, :, np.newaxis]
     objective_frequency = _frequency_is_objective(power, variance)
     objective_history = [float(np.sum(objective_frequency))]
+    sweep_evaluation_history = [0]
     rate_history = [rates.copy()]
     residual_history: list[float] = []
     rate_scale = upper - lower
@@ -599,6 +617,7 @@ def decay_squarem(
             )
             objective_frequency = objective_1
             objective_history.append(float(np.sum(objective_frequency)))
+            sweep_evaluation_history.append(n_sweep_evaluations)
             rate_history.append(rates.copy())
             converged = True
             break
@@ -611,6 +630,7 @@ def decay_squarem(
             )
             objective_frequency = objective_1
             objective_history.append(float(np.sum(objective_frequency)))
+            sweep_evaluation_history.append(n_sweep_evaluations)
             rate_history.append(rates.copy())
             break
 
@@ -661,6 +681,7 @@ def decay_squarem(
                 step_max,
             )
             objective_history.append(float(np.sum(objective_frequency)))
+            sweep_evaluation_history.append(n_sweep_evaluations)
             rate_history.append(rates.copy())
             continue
 
@@ -709,6 +730,7 @@ def decay_squarem(
             objective_frequency = _frequency_is_objective(power, variance)
             n_rejected += int(np.count_nonzero(attempted))
             objective_history.append(float(np.sum(objective_frequency)))
+            sweep_evaluation_history.append(n_sweep_evaluations)
             rate_history.append(rates.copy())
             break
 
@@ -740,6 +762,7 @@ def decay_squarem(
         variance[:, accepted, :] = stabilized_variance[:, accepted, :]
         objective_frequency = _frequency_is_objective(power, variance)
         objective_history.append(float(np.sum(objective_frequency)))
+        sweep_evaluation_history.append(n_sweep_evaluations)
         rate_history.append(rates.copy())
 
         hit_cap = raw_step >= step_max
@@ -760,6 +783,9 @@ def decay_squarem(
         noise_floor=noise_floor.copy(),
         variance=variance.copy(),
         objective_history=np.asarray(objective_history, dtype=np.float64),
+        sweep_evaluation_history=np.asarray(
+            sweep_evaluation_history, dtype=np.int64
+        ),
         rate_history_per_s=np.asarray(rate_history, dtype=np.float64),
         fixed_point_residual_history=np.asarray(residual_history, dtype=np.float64),
         n_sweep_evaluations=n_sweep_evaluations,

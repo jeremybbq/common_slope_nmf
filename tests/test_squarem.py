@@ -47,6 +47,7 @@ def test_step_one_matches_two_complete_sage_sweeps():
     np.testing.assert_array_equal(accelerated.amplitudes, expected.amplitudes)
     np.testing.assert_array_equal(accelerated.variance, expected.variance)
     assert accelerated.n_sweep_evaluations == 2
+    np.testing.assert_array_equal(accelerated.sweep_evaluation_history, [0, 2])
     assert accelerated.n_accepted_extrapolations == 0
     assert accelerated.n_rejected_extrapolations == 0
 
@@ -67,6 +68,10 @@ def test_squarem_recovers_difficult_amplitudes_monotonically():
     )
 
     assert result.converged
+    assert result.sweep_evaluation_history[0] == 0
+    assert result.sweep_evaluation_history[-1] == result.n_sweep_evaluations
+    assert np.all(np.diff(result.sweep_evaluation_history) > 0)
+    assert result.sweep_evaluation_history.shape == result.objective_history.shape
     assert np.max(np.diff(result.objective_history)) <= 1e-12
     assert result.n_accepted_extrapolations > 0
     np.testing.assert_allclose(
@@ -141,6 +146,7 @@ def test_decay_step_one_matches_two_complete_sage_sweeps():
     np.testing.assert_array_equal(accelerated.variance, expected.variance)
     np.testing.assert_array_equal(accelerated.noise_floor, 0.0)
     assert accelerated.n_sweep_evaluations == 2
+    np.testing.assert_array_equal(accelerated.sweep_evaluation_history, [0, 2])
 
 
 def test_decay_squarem_preserves_constraints_and_original_objective():
@@ -179,6 +185,9 @@ def test_decay_squarem_preserves_constraints_and_original_objective():
     assert np.all(result.noise_floor > 0.0)
     assert np.all(result.variance > 0.0)
     assert result.rate_history_per_s.shape[0] == result.objective_history.size
+    assert result.sweep_evaluation_history.shape == result.objective_history.shape
+    assert result.sweep_evaluation_history[-1] == result.n_sweep_evaluations
+    assert np.all(np.diff(result.sweep_evaluation_history) > 0)
 
 
 @pytest.mark.parametrize(
