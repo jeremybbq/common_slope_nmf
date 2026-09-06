@@ -97,6 +97,7 @@ focused tests. Safeguarded full-sweep SQUAREM wrappers accelerate the fixed-rate
 decay SAGE maps while retaining the original IS objective and an ordinary-SAGE fallback.
 An optional component-strength-weighted pseudo-SAGE M-step is also implemented as an
 experimental comparison; unlike exact SAGE, it does not assume a monotone observed
-objective. Formal acceleration benchmarks remain pending. The next model-development
-milestones are small-component-count enumeration, wideband localization, pruning, and
-smooth frequency trajectories.
+objective. One controlled fixed-data SQUAREM convergence comparison is recorded in
+`docs/EXPERIMENTS.md`; broader acceleration benchmarks remain pending. The next
+model-development milestones are small-component-count enumeration, wideband localization,
+pruning, and smooth frequency trajectories.

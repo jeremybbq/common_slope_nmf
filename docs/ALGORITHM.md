@@ -68,11 +68,11 @@ fixed initial mean-power scales. Extrapolation itself remains in physical invers
 and variance coordinates.
 
 The accelerated result types report complete SAGE-sweep evaluations rather than treating
-one two- or three-sweep SQUAREM cycle as one ordinary iteration. They also record a
-fixed-point residual, accepted and rejected block counts, and the original IS-objective
-history. These implementations are tested for numerical correctness and safeguards; a
-formal runtime and recovery comparison remains an experiment rather than a validated
-performance claim.
+one two- or three-sweep SQUAREM cycle as one ordinary iteration. They record the cumulative
+sweep count corresponding to every retained objective value, a fixed-point residual, and
+accepted and rejected block counts. The implementations are tested for numerical
+correctness and safeguards. Experiment 12 provides one controlled convergence comparison;
+broader runtime and recovery performance remains an empirical question.
 
 ## 2. Wideband localization
 

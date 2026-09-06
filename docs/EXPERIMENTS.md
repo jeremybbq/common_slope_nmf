@@ -485,6 +485,90 @@ Those values are plotted as comparison markers, not treated as ground truth for 
 direct-bin STFT fit. The published analysis uses octave bands and a different estimation
 pipeline, so disagreement does not isolate an optimizer error.
 
+### 12. Fixed-data SQUAREM convergence comparison
+
+Reuse the exact observations, equal `[2, 2] s` initialization, rate bounds, amplitude and
+floor initialization, safeguarded Newton rate solver, and `1e-10` outer objective tolerance
+from experiments 6 and 7. Compare ordinary SAGE, pseudo-SAGE with `rho` and `rho**2`
+weights, and safeguarded SQUAREM applied to the complete ordinary-SAGE map. Give every
+method at most 2,000 complete ordinary-SAGE sweep evaluations. Count both construction
+sweeps and every stabilization sweep against SQUAREM's budget; plotting SQUAREM cycle
+number as if it were one SAGE sweep would understate its work.
+
+Run from scratch with:
+
+```text
+python -m examples.compare_multislope_convergence
+```
+
+The script can instead accept repeated `--reference-diagnostics` arguments to reuse the
+saved deterministic ordinary and weighted histories while running only SQUAREM. The
+controlled run on 2026-09-06 measured:
+
+| Method | Sweep evaluations | Final observed IS | Final sorted `T60` (s) |
+| --- | ---: | ---: | --- |
+| Ordinary SAGE | 2,000 | 110286.091 | `[1.527472, 2.841984]` |
+| Pseudo-SAGE, `rho` | 2,000 | 109934.741 | `[1.025453, 2.687106]` |
+| Pseudo-SAGE, `rho**2` | 258 | 109977.015 | `[1.013123, 2.682803]` |
+| SQUAREM on ordinary SAGE | 2,000 | 109910.115 | `[1.073279, 2.701824]` |
+
+SQUAREM accepted 636 extrapolated states and rejected 29 through its feasibility and
+original-objective safeguards. Its retained observed objective was non-increasing. It
+reached the ordinary-SAGE 2,000-sweep endpoint by sweep evaluation 283, the `rho**2`
+endpoint by evaluation 616, and the `rho` endpoint by evaluation 883. The weighted
+methods descended substantially faster during the first few hundred sweeps, while
+SQUAREM continued below their recorded endpoints later in the budget.
+
+The generating sorted energy-decay times were `[1.041716, 2.680267] s`. The lowest
+in-sample observed objective therefore did not give the smallest error in both decay
+times: sampling variation and optimization target must be kept distinct. This is one
+fixed stochastic dataset and one initialization, so it supports an implementation-level
+comparison only. Runtime conclusions require fresh timed runs of every method, and
+recovery conclusions require multiple datasets, slope separations, and initializations.
+
+The timestamped output contains the raw-loss and best-retained-loss-gap curves, a CSV
+summary, and un-interpolated numerical histories. SQUAREM's objective archive includes
+the cumulative base-sweep evaluation index for every retained state.
+
+### 13. SQUAREM continuation from weighted pseudo-SAGE
+
+Repeat the experiment-7 `rho` pseudo-SAGE fit for 2,000 sweeps so its complete final
+state is available, including the shared rates, all 512-by-2 amplitudes, and all 512
+floors. Use that complete state—not only its two decay times—to initialize safeguarded
+SQUAREM on the ordinary-SAGE fixed-point map. Give SQUAREM a fresh 2,000 base-sweep
+evaluation budget with objective tolerance `1e-10` and fixed-point tolerance `1e-6`.
+
+Run:
+
+```text
+python -m examples.warm_start_squarem_from_pseudo_sage
+```
+
+The deterministic rerun exactly reproduced the saved pseudo-SAGE endpoint. The measured
+two-stage result on 2026-09-06 was:
+
+| Stage | Additional sweeps | Final observed IS | Final sorted `T60` (s) | Converged |
+| --- | ---: | ---: | --- | --- |
+| Pseudo-SAGE, `rho` | 2,000 | 109934.741 | `[1.025453, 2.687106]` | No |
+| SQUAREM continuation | 2,000 | 109908.855 | `[1.056690, 2.696954]` | No |
+
+SQUAREM reduced the pseudo-SAGE endpoint by `25.886`, or `0.02355%`, and retained a
+non-increasing observed objective. It accepted 663 extrapolations and rejected 3. It
+passed the cold-start SQUAREM 2,000-evaluation endpoint (`109910.115`) after 398 additional
+evaluations and finished `1.260` objective units below it.
+
+The continuation still exhausted its budget. Its final dimensionless fixed-point
+residual was `1.22e-4`, above the requested `1e-6`, so the endpoint is not declared
+converged. Relative to the generating `[1.041716, 2.680267] s`, the short-decay absolute
+error improved slightly from `0.01626` to `0.01497 s`, while the long-decay error increased
+from `0.00684` to `0.01669 s`. This again shows that a lower in-sample stochastic loss
+need not minimize realized parameter error.
+
+The timestamped output saves both complete final parameter states, objective and rate
+histories, SQUAREM fixed-point residuals, a CSV summary, and a two-stage convergence plot.
+This single continuation demonstrates that the weighted pseudo-SAGE endpoint is not an
+ordinary-SAGE fixed point; it does not establish a generally superior optimizer sequence.
+
 ## Future stochastic joint-rate recovery
 
 Generate complex Gaussian STFT coefficients from unknown exponential rates. Sweep rate

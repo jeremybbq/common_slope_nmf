@@ -39,8 +39,9 @@ shared across RIRs, with non-negative per-RIR amplitudes and noise floors.
 The implemented modules support the validation experiments through the independent-
 frequency decay-detection sweep and three-coupled-room real-RIR experiment, including the
 independent-frequency joint rate/amplitude step, seeded stochastic two-slope run, and a
-controlled weighted pseudo-SAGE comparison and decay-initialization basin scan. The
-weighted variant is implemented for experimentation rather than claimed as a
-monotone-likelihood method. Wideband
+controlled weighted pseudo-SAGE comparison, decay-initialization basin scan, and one
+equal-base-sweep SQUAREM convergence comparison with a weighted-to-ordinary warm-start
+continuation. The weighted variant is implemented for experimentation rather than claimed
+as a monotone-likelihood method. Wideband
 initialization, component selection, and smooth frequency trajectories remain research
 plans.
