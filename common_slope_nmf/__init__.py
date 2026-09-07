@@ -9,13 +9,17 @@ from .model import (
 )
 from .preprocess import DecayFit, fit_coarse_decay, head_power, tail_power
 from .rir import (
+    SOFADatasetInfo,
     SRIRDatasetInfo,
     STFTPower,
     global_energy_onset,
+    inspect_sofa_dataset,
     inspect_srir_dataset,
+    load_sofa_channel,
     load_srir_channel,
     resample_rirs,
     rir_stft_power,
+    select_stft_frames,
 )
 from .sage import (
     AmplitudeSAGEResult,
@@ -53,6 +57,7 @@ __all__ = [
     "DecaySAGEResult",
     "DecaySAGEUpdateDiagnostics",
     "DecaySQUAREMResult",
+    "SOFADatasetInfo",
     "SRIRDatasetInfo",
     "STFTPower",
     "amplitude_sage",
@@ -66,13 +71,16 @@ __all__ = [
     "global_energy_onset",
     "head_power",
     "init_decay_sage",
+    "inspect_sofa_dataset",
     "inspect_srir_dataset",
     "is_divergence",
     "load_srir_channel",
+    "load_sofa_channel",
     "pseudo_decay_sage",
     "rate_to_t60",
     "resample_rirs",
     "rir_stft_power",
+    "select_stft_frames",
     "sample_complex_gaussian",
     "sample_multislope_data",
     "sample_power",

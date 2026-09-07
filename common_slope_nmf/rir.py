@@ -38,6 +38,31 @@ class SRIRDatasetInfo:
 
 
 @dataclass(frozen=True)
+class SOFADatasetInfo:
+    """Layout metadata for a SOFA ``SingleRoomDRIR`` dataset.
+
+    Attributes
+    ----------
+    shape
+        ``Data.IR`` shape ``(M,R,N)``: measurements, receiver channels, and
+        time samples.
+    n_measurements, n_receivers, n_samples
+        Sizes of the three ``Data.IR`` axes.
+    sample_rate_hz
+        Sampling rate in samples per second.
+    convention
+        Decoded value of the root ``SOFAConventions`` attribute.
+    """
+
+    shape: tuple[int, int, int]
+    n_measurements: int
+    n_receivers: int
+    n_samples: int
+    sample_rate_hz: float
+    convention: str
+
+
+@dataclass(frozen=True)
 class STFTPower:
     """Selected complex-STFT powers for a batch of RIRs.
 
@@ -70,6 +95,142 @@ def _h5py():
             "project's examples extra."
         ) from exc
     return h5py
+
+
+def _decode_hdf5_text(value: object) -> str:
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return str(value)
+
+
+def inspect_sofa_dataset(path: str | Path) -> SOFADatasetInfo:
+    """Inspect a SOFA room-impulse-response file.
+
+    Parameters
+    ----------
+    path
+        Path to a SOFA HDF5 file containing ``Data.IR`` with axes
+        ``(measurement, receiver, sample)``.
+
+    Returns
+    -------
+    SOFADatasetInfo
+        Array dimensions, sample rate in hertz, and SOFA convention.
+    """
+
+    h5py = _h5py()
+    with h5py.File(Path(path), "r") as stream:
+        if "Data.IR" not in stream or "Data.SamplingRate" not in stream:
+            raise ValueError(
+                "SOFA dataset must contain 'Data.IR' and 'Data.SamplingRate'."
+            )
+        shape = tuple(int(value) for value in stream["Data.IR"].shape)
+        if len(shape) != 3 or any(value <= 0 for value in shape):
+            raise ValueError("SOFA Data.IR must have non-empty shape (M,R,N).")
+        sampling_rate = np.asarray(stream["Data.SamplingRate"], dtype=np.float64)
+        if sampling_rate.size != 1:
+            raise ValueError("SOFA Data.SamplingRate must contain one value.")
+        sample_rate_hz = float(sampling_rate.reshape(-1)[0])
+        convention = _decode_hdf5_text(stream.attrs.get("SOFAConventions", ""))
+    if not np.isfinite(sample_rate_hz) or sample_rate_hz <= 0.0:
+        raise ValueError("SOFA sampling rate must be finite and positive.")
+    return SOFADatasetInfo(
+        shape=shape,
+        n_measurements=shape[0],
+        n_receivers=shape[1],
+        n_samples=shape[2],
+        sample_rate_hz=sample_rate_hz,
+        convention=convention,
+    )
+
+
+def load_sofa_channel(
+    path: str | Path,
+    *,
+    channel_index: int = 0,
+    measurement_indices: ArrayLike | None = None,
+    time_chunk_samples: int = 8192,
+) -> tuple[
+    NDArray[np.float64],
+    NDArray[np.float64],
+    NDArray[np.float64],
+    SOFADatasetInfo,
+]:
+    """Load one receiver channel from selected SOFA measurements.
+
+    Parameters
+    ----------
+    path
+        Path to a SOFA file with ``Data.IR`` shape ``(M,R,N)``.
+    channel_index
+        Zero-based receiver-channel index. For an ACN spherical-harmonic RIR,
+        channel zero is the omnidirectional channel.
+    measurement_indices
+        Optional strictly increasing measurement indices, shape ``(Q,)``.
+        ``None`` loads all measurements.
+    time_chunk_samples
+        Positive number of samples read per HDF5 block.
+
+    Returns
+    -------
+    rirs, listener_positions_m, source_positions_m, info
+        RIR samples ``(Q,N)`` in their stored amplitude units, listener and
+        source Cartesian positions ``(Q,3)`` in metres, and file metadata.
+    """
+
+    info = inspect_sofa_dataset(path)
+    if isinstance(channel_index, bool) or not isinstance(channel_index, int):
+        raise TypeError("channel_index must be an integer.")
+    if not 0 <= channel_index < info.n_receivers:
+        raise ValueError("channel_index is outside the available SOFA receivers.")
+    if isinstance(time_chunk_samples, bool) or not isinstance(time_chunk_samples, int):
+        raise TypeError("time_chunk_samples must be an integer.")
+    if time_chunk_samples <= 0:
+        raise ValueError("time_chunk_samples must be positive.")
+
+    if measurement_indices is None:
+        selected = np.arange(info.n_measurements, dtype=np.int64)
+    else:
+        selected = np.asarray(measurement_indices)
+        if selected.ndim != 1 or not np.issubdtype(selected.dtype, np.integer):
+            raise ValueError(
+                "measurement_indices must be a one-dimensional integer array."
+            )
+        selected = selected.astype(np.int64, copy=False)
+        if selected.size == 0:
+            raise ValueError("measurement_indices must not be empty.")
+        if np.any((selected < 0) | (selected >= info.n_measurements)):
+            raise ValueError("measurement_indices contains an out-of-range index.")
+        if np.any(np.diff(selected) <= 0):
+            raise ValueError("measurement_indices must be strictly increasing.")
+
+    h5py = _h5py()
+    rirs = np.empty((selected.size, info.n_samples), dtype=np.float64)
+    with h5py.File(Path(path), "r") as stream:
+        source = stream["Data.IR"]
+        for start in range(0, info.n_samples, time_chunk_samples):
+            stop = min(start + time_chunk_samples, info.n_samples)
+            rirs[:, start:stop] = source[selected, channel_index, start:stop]
+
+        positions: list[NDArray[np.float64]] = []
+        for name in ("ListenerPosition", "SourcePosition"):
+            if name not in stream:
+                raise ValueError(f"SOFA dataset must contain '{name}'.")
+            values = np.asarray(stream[name], dtype=np.float64)
+            if (
+                values.ndim != 2
+                or values.shape[0]
+                not in (
+                    1,
+                    info.n_measurements,
+                )
+                or values.shape[1] < 3
+            ):
+                raise ValueError(f"SOFA {name} must have shape (1,3) or (M,3).")
+            if values.shape[0] == 1:
+                values = np.repeat(values, info.n_measurements, axis=0)
+            positions.append(values[selected, :3].copy())
+    return rirs, positions[0], positions[1], info
 
 
 def inspect_srir_dataset(path: str | Path) -> SRIRDatasetInfo:
@@ -107,9 +268,7 @@ def inspect_srir_dataset(path: str | Path) -> SRIRDatasetInfo:
             axis for axis in range(3) if axis not in (time_axis, channel_axis)
         )
         sample_rate_hz = (
-            float(np.asarray(group["fs"]).squeeze())
-            if "fs" in group
-            else 48_000.0
+            float(np.asarray(group["fs"]).squeeze()) if "fs" in group else 48_000.0
         )
     if not np.isfinite(sample_rate_hz) or sample_rate_hz <= 0.0:
         raise ValueError("dataset sampling rate must be finite and positive.")
@@ -160,9 +319,7 @@ def load_srir_channel(
         raise TypeError("channel_index must be an integer.")
     if not 0 <= channel_index < info.n_channels:
         raise ValueError("channel_index is outside the available channels.")
-    if isinstance(time_chunk_samples, bool) or not isinstance(
-        time_chunk_samples, int
-    ):
+    if isinstance(time_chunk_samples, bool) or not isinstance(time_chunk_samples, int):
         raise TypeError("time_chunk_samples must be an integer.")
     if time_chunk_samples <= 0:
         raise ValueError("time_chunk_samples must be positive.")
@@ -400,17 +557,63 @@ def rir_stft_power(
     )
     observed_power = np.maximum(
         observed_power,
-        positive_scale * np.finfo(np.float64).eps**2,
+        positive_scale * np.finfo(np.float64).eps ** 2,
     )
     n_frames = observed_power.shape[2]
     times_s = (
-        np.arange(n_frames, dtype=np.float64)
-        * hop_size_samples
-        / float(sample_rate_hz)
+        np.arange(n_frames, dtype=np.float64) * hop_size_samples / float(sample_rate_hz)
     )
     return STFTPower(
         observed_power=np.asarray(observed_power, dtype=np.float64),
         frequencies_hz=np.asarray(frequencies_hz[selected], dtype=np.float64),
         times_s=times_s,
         sample_rate_hz=float(sample_rate_hz),
+    )
+
+
+def select_stft_frames(
+    transformed: STFTPower,
+    *,
+    discard_initial_frames: int,
+    discard_final_frames: int,
+) -> STFTPower:
+    """Discard leading and trailing STFT frames and reset elapsed time.
+
+    Parameters
+    ----------
+    transformed
+        STFT powers with shape ``(R,F,N)`` and matching frequency/time axes.
+    discard_initial_frames, discard_final_frames
+        Non-negative counts removed from the start and end of the frame axis.
+
+    Returns
+    -------
+    STFTPower
+        Selected powers ``(R,F,N_new)``. The first retained frame is assigned
+        elapsed time zero, so fitted amplitudes refer to that common origin.
+    """
+
+    for name, value in (
+        ("discard_initial_frames", discard_initial_frames),
+        ("discard_final_frames", discard_final_frames),
+    ):
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise TypeError(f"{name} must be an integer.")
+        if value < 0:
+            raise ValueError(f"{name} must be non-negative.")
+    power = np.asarray(transformed.observed_power, dtype=np.float64)
+    frequencies = np.asarray(transformed.frequencies_hz, dtype=np.float64)
+    times = np.asarray(transformed.times_s, dtype=np.float64)
+    if power.ndim != 3 or power.shape[1:] != (frequencies.size, times.size):
+        raise ValueError("transformed STFT arrays have inconsistent shapes.")
+    stop = times.size - discard_final_frames
+    if discard_initial_frames >= stop:
+        raise ValueError("frame discards must leave at least one frame.")
+    selected_times = times[discard_initial_frames:stop].copy()
+    selected_times -= selected_times[0]
+    return STFTPower(
+        observed_power=power[:, :, discard_initial_frames:stop].copy(),
+        frequencies_hz=frequencies.copy(),
+        times_s=selected_times,
+        sample_rate_hz=float(transformed.sample_rate_hz),
     )

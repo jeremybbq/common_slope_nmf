@@ -27,7 +27,7 @@ shared across RIRs, with non-negative per-RIR amplitudes and noise floors.
 | `common_slope_nmf/model.py` | Implemented | Exponential variance model and parameter transforms |
 | `common_slope_nmf/synth.py` | Implemented | Dirichlet decay parameters and complex-Gaussian observations |
 | `common_slope_nmf/preprocess.py` | Implemented | Head/tail power summaries and pooled coarse decay fitting |
-| `common_slope_nmf/rir.py` | Implemented | MATLAB SRIR loading, pooled global onset, resampling, and STFT power |
+| `common_slope_nmf/rir.py` | Implemented | MATLAB/SOFA RIR loading, pooled global onset, resampling, STFT power, and frame selection |
 | `common_slope_nmf/plotting.py` | Implemented | Reusable static and animated result diagnostics |
 | `common_slope_nmf/is_objective.py` | Implemented | IS divergence and Gaussian variance criterion |
 | `common_slope_nmf/sage.py` | Implemented | Supplied-atom amplitudes, profiled decay-rate SAGE, and experimental weighted pseudo-SAGE |
@@ -45,3 +45,8 @@ continuation. The weighted variant is implemented for experimentation rather tha
 as a monotone-likelihood method. Wideband
 initialization, component selection, and smooth frequency trajectories remain research
 plans.
+
+The raw SOFA room-transition experiment is implemented in
+`experiments/roomToHallway_omni.py`. It adds SOFA channel loading to `rir.py`, caches the
+agreed 512-sample Hann/512-point FFT powers, and keeps pilot and full weighted pseudo-SAGE
+stages separate so numerical behavior can be reviewed before the full launch.

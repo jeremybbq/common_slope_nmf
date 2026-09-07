@@ -1,5 +1,35 @@
 # Experimental protocol
 
+## Raw room-to-hallway transition experiment
+
+`experiments/roomToHallway_omni.py` operates on the four raw v1.3 Meeting Room to
+Hallway SOFA files. It pools the four source/visibility conditions only for the common
+decay rates; amplitudes and constant noise floors remain specific to every RIR and
+frequency. Channel zero is the ACN omnidirectional response.
+
+At 48 kHz, use a 512-sample Hann window, 256-sample hop, and 512-point FFT without
+boundary or end padding. Retain bins 2 through 85 (187.5 through 7968.75 Hz). Of the 280
+complete frames in each 1.5 s RIR, discard frames 0 through 9 and the final 20 frames,
+then reset the first retained frame to elapsed time zero. This keeps 250 frames, starts
+the first retained window at 53.33 ms, and leaves approximately 108 ms of raw samples
+after the final retained window, excluding the dataset's published fade-out region.
+
+The default pilot uses 25 evenly spaced listener positions from each of the four
+conditions and the FFT bins nearest 250, 500, 1000, 2000, 4000, and 8000 Hz. Compare
+K=1,2,3 under equal pooled-log-linear and log-spaced rate starts; K=1 has only the equal
+start because both rules coincide. Decay amplitude is divided equally after subtracting
+the initialized tail-average floor from the leading-frame power. Fit a per-RIR,
+per-frequency constant floor and use `rho` as the pseudo-SAGE surrogate weight. The
+weighted method remains experimental, so a finite-result and objective-growth gate is a
+numerical diagnostic rather than a validation claim.
+
+Run the pilot before the full stage:
+
+```text
+python -m experiments.roomToHallway_omni --stage pilot
+python -m experiments.roomToHallway_omni --stage full
+```
+
 ## Implemented foundational validation
 
 ### 1. Energy-decay convention
