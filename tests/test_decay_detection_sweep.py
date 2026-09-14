@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from common_slope_nmf import decay_sage, pseudo_decay_sage
-from examples.sweep_decay_detection import (
+from experiments.synthetic_decay_robustness import (
     frequency_batches,
     order_decay_components,
 )
@@ -13,6 +13,11 @@ from examples.sweep_decay_detection import (
 def test_decay_estimators_use_pragmatic_outer_tolerance_default():
     assert inspect.signature(decay_sage).parameters["tol"].default == 1e-6
     assert inspect.signature(pseudo_decay_sage).parameters["tol"].default == 1e-6
+    assert inspect.signature(decay_sage).parameters["decay_tol"].default is None
+    assert (
+        inspect.signature(pseudo_decay_sage).parameters["decay_tol"].default
+        is None
+    )
 
 
 def test_frequency_batches_cover_all_bins_once():

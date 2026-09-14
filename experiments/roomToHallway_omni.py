@@ -35,7 +35,7 @@ from common_slope_nmf import (
     select_stft_frames,
     t60_to_rate,
 )
-from examples._run_output import create_run_output_dir
+from experiments._run_output import create_run_output_dir
 
 
 DATASET_DIR = Path.home() / "Data" / "Coupled_Room_Transition" / "v1.3"

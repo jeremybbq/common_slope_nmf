@@ -26,7 +26,7 @@ from common_slope_nmf.georg_baselines import (
     edc_to_equivalent_rir_power_amplitudes,
     fit_common_slope_edcs,
 )
-from examples._run_output import create_run_output_dir
+from experiments._run_output import create_run_output_dir
 from experiments.roomToHallway_omni import (
     CONDITION_FILES,
     DATASET_DIR,

@@ -1,4 +1,4 @@
-"""Shared timestamped output-directory handling for executable examples."""
+"""Shared timestamped output-directory handling for executable experiments."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from pathlib import Path
 def create_run_output_dir(
     output_root: Path, *, now: datetime | None = None
 ) -> Path:
-    """Create and return ``output_root / date-time`` for one example run.
+    """Create and return ``output_root / date-time`` for one experiment run.
 
     Parameters
     ----------

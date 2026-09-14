@@ -28,7 +28,7 @@ from common_slope_nmf import (
     rir_stft_power,
     t60_to_rate,
 )
-from examples._run_output import create_run_output_dir
+from experiments._run_output import create_run_output_dir
 
 DATASET_PATH = Path("data/srirs.mat")
 CACHE_PATH = Path("data/coupled_rooms_stft_power.npy")

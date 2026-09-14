@@ -42,12 +42,6 @@ from .sage import (
     update_rates_bisection,
     update_rates_newton,
 )
-from .squarem import (
-    AmplitudeSQUAREMResult,
-    DecaySQUAREMResult,
-    amplitude_squarem,
-    decay_squarem,
-)
 from .synth import (
     DecayData,
     sample_complex_gaussian,
@@ -59,7 +53,6 @@ from .synth import (
 
 __all__ = [
     "AmplitudeSAGEResult",
-    "AmplitudeSQUAREMResult",
     "CommonSlopeEDCFit",
     "DecayData",
     "DecayFitNetEstimate",
@@ -67,16 +60,13 @@ __all__ = [
     "DecaySAGEInit",
     "DecaySAGEResult",
     "DecaySAGEUpdateDiagnostics",
-    "DecaySQUAREMResult",
     "ExternalDecayFitNet",
     "SOFADatasetInfo",
     "SRIRDatasetInfo",
     "STFTPower",
     "amplitude_sage",
-    "amplitude_squarem",
     "band_energy_decay_curves",
     "decay_sage",
-    "decay_squarem",
     "determine_common_decay_times",
     "edc_to_equivalent_rir_power_amplitudes",
     "exponential_atoms",

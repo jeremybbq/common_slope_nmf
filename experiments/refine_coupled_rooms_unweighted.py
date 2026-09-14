@@ -1,7 +1,7 @@
 """Refine saved coupled-room fits with ordinary, unweighted decay SAGE.
 
 Each input is a ``full_results.npz`` artifact produced by
-``examples.fit_coupled_rooms``.  Its fitted rates and per-RIR amplitudes are
+``experiments.fit_coupled_rooms``.  Its fitted rates and per-RIR amplitudes are
 used together as a warm start, while all other coupled-room settings remain
 unchanged.  Frequencies are fitted independently and without a noise floor.
 """
@@ -17,8 +17,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from common_slope_nmf import decay_sage, rate_to_t60, t60_to_rate
-from examples._run_output import create_run_output_dir
-from examples.fit_coupled_rooms import (
+from experiments._run_output import create_run_output_dir
+from experiments.fit_coupled_rooms import (
     CACHE_METADATA_PATH,
     CACHE_PATH,
     T60_BOUNDS_S,

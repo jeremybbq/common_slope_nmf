@@ -1,1 +1,1 @@
-"""Dataset experiments built on the validated estimator components."""
+"""Synthetic and real-data experiments built on the numerical package."""
