@@ -32,47 +32,7 @@ Jacobi/EM-like iteration. The implementation instead vectorizes all row and fram
 within each component. With the intended small component counts, this retains the exact
 algorithm while keeping the expensive operations in NumPy.
 
-## 1.1 Safeguarded full-sweep SQUAREM
-
-`amplitude_squarem` and `decay_squarem` accelerate the corresponding ordinary SAGE
-solver without changing the IS objective, posterior construction, or component M-steps.
-One fixed-point evaluation `F(theta)` is one complete sequential SAGE sweep. Given
-
-```text
-theta_1 = F(theta_0),
-theta_2 = F(theta_1),
-r       = theta_1 - theta_0,
-v       = theta_2 - 2 theta_1 + theta_0,
-```
-
-the implemented S3 proposal is
-
-```text
-alpha    = ||r|| / ||v||,
-theta_sq = theta_0 + 2 alpha r + alpha**2 v.
-```
-
-The adaptive step bound is never below one; `alpha = 1` is exactly `theta_2` and
-therefore represents two ordinary SAGE sweeps. Larger proposals receive one stabilizing
-SAGE sweep. A block is retained only when it is finite, satisfies all amplitude and rate
-bounds, and does not increase that block's original observed IS objective. Otherwise it
-falls back to `theta_2`. Step bounds start conservatively and expand or contract after
-capped accepted or rejected proposals.
-
-For fixed supplied atoms, RIR rows are independent, so S3 norms, step lengths, and
-acceptance decisions are per RIR. For joint decay estimation, rates couple RIRs within a
-frequency but frequencies remain independent, so each block contains all rates,
-amplitudes, and floors at one frequency. Joint-decay norms are dimensionless: rate
-differences are divided by their fixed bound widths, and amplitude/floor differences by
-fixed initial mean-power scales. Extrapolation itself remains in physical inverse-second
-and variance coordinates.
-
-The accelerated result types report complete SAGE-sweep evaluations rather than treating
-one two- or three-sweep SQUAREM cycle as one ordinary iteration. They record the cumulative
-sweep count corresponding to every retained objective value, a fixed-point residual, and
-accepted and rejected block counts. The implementations are tested for numerical
-correctness and safeguards. Experiment 12 provides one controlled convergence comparison;
-broader runtime and recovery performance remains an empirical question.
+The acceleration implementation and its derivation are preserved on `feat/squarem`.
 
 ## 2. Wideband localization
 

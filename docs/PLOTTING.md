@@ -1,29 +1,22 @@
-# Plotting result diagnostics
+# Experiment plots
 
-Reusable result visualization lives in `common_slope_nmf.plotting`. The module
-is imported explicitly because Matplotlib is an optional dependency:
+Plotting functions live with their owning scripts in `experiments/`, outside the
+numerical package. There is no central plotting module. Functions accept arrays
+or the owning experiment's saved run and return figures or saved paths.
 
-```python
-from common_slope_nmf import plotting
-```
+- `synthetic_convergence.py`: total IS loss, excess loss, profiled loss surface
+  with T60 trajectories. Surface interpolation is display-only.
+- `synthetic_decay_robustness.py`: rate-error scatter, error histograms, and
+  decay/amplitude errors versus true pair separation.
+- `synthetic_amplitude_identifiability.py`: amplitude-error distributions with
+  unfinished cases marked. `load_run` reconstructs a saved ordinary-SAGE run.
+- Real-data scripts retain their existing local plotting functions.
 
-The plotting functions accept numerical arrays rather than objects defined by
-an example script. They return Matplotlib figures without writing files;
-`save_figure` handles output paths and optional figure closing. This separates
-result visualization from synthesis and optimization, and allows saved NPZ
-results to be replotted without rerunning SAGE.
+Each synthetic CLI accepts `--plot-results PATH` to plot an existing NPZ without
+calling an estimator, and `--show` to display figures. PDF and PNG outputs go to
+a new timestamped run directory. See [Experiments](EXPERIMENTS.md) for commands.
 
-Implemented plot families include:
-
-- observed, generating, and fitted variance maps over `(R,N)`;
-- complete-sweep objectives and energy-`T60` trajectories;
-- true-versus-fitted decay pairs, error CDFs, and errors versus true separation;
-- unsigned power-dB amplitude RMSE and signed power-dB amplitude bias;
-- simplex shares, amplitude distributions, joint amplitudes, and per-RIR parameters;
-- initialization-basin arrows and metric heatmaps;
-- known-decay amplitude/floor calibration plots; and
-- animated scaled fitting error and three-component Wiener-style weights.
-
-Units remain explicit in each public docstring. Amplitude and floor dB use the
-power convention `10 log10(value)`. Animation builders return both the figure
-and `FuncAnimation`; the caller selects GIF/video encoding and filename.
+Decay times are energy T60 in seconds; rates are inverse seconds. Amplitude ratios
+use `10 log10`, since amplitudes represent variance/power. Preserve component ordering
+when comparing amplitudes and rates. Numerical convergence flags remain distinct from
+statistical recovery. Saved arrays retain outliers even if a display clips them.

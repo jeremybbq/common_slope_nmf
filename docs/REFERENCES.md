@@ -23,7 +23,7 @@ R. Varadhan and C. Roland, “Simple and Globally Convergent Methods for Acceler
 Convergence of Any EM Algorithm,” *Scandinavian Journal of Statistics*, vol. 35, no. 2,
 pp. 335--353, 2008. <https://doi.org/10.1111/j.1467-9469.2007.00585.x>.
 
-The package's SQUAREM functions use the paper's first-order S3 squared extrapolation with
+The SQUAREM functions preserved on `feat/squarem` use the paper's first-order S3 squared extrapolation with
 ordinary SAGE sweeps as the fixed-point map. Feasibility checks, a stabilizing sweep, and
 strict original-IS-objective acceptance retain an ordinary two-sweep SAGE fallback.
 

@@ -11,7 +11,7 @@ shared across RIRs, with non-negative per-RIR amplitudes and noise floors.
 1. [Model](MODEL.md) defines the observation model, units, and identifiability.
 2. [Synthetic decay data](SYNTHESIS.md) defines reproducible parameter and observation draws.
 3. [Preprocessing](PREPROCESSING.md) defines coarse data summaries and SAGE initialization.
-4. [Plotting](PLOTTING.md) defines reusable result diagnostics without rerunning estimators.
+4. [Plotting](PLOTTING.md) describes experiment-local diagnostics without rerunning estimators.
 5. [Algorithm](ALGORITHM.md) separates supplied-atom amplitude updates, profiled
    decay-rate SAGE, wideband search, pruning, and smooth trajectories.
 6. [Experiments](EXPERIMENTS.md) defines the validation sequence before algorithmic claims.
@@ -28,25 +28,31 @@ shared across RIRs, with non-negative per-RIR amplitudes and noise floors.
 | `common_slope_nmf/synth.py` | Implemented | Dirichlet decay parameters and complex-Gaussian observations |
 | `common_slope_nmf/preprocess.py` | Implemented | Head/tail power summaries and pooled coarse decay fitting |
 | `common_slope_nmf/rir.py` | Implemented | MATLAB/SOFA RIR loading, pooled global onset, resampling, STFT power, and frame selection |
-| `common_slope_nmf/plotting.py` | Implemented | Reusable static and animated result diagnostics |
+| `common_slope_nmf/georg_baselines.py` | Implemented | External DecayFitNet ONNX adapter and Georg-style common-slope EDC clustering/amplitude fit |
 | `common_slope_nmf/is_objective.py` | Implemented | IS divergence and Gaussian variance criterion |
 | `common_slope_nmf/sage.py` | Implemented | Supplied-atom amplitudes, profiled decay-rate SAGE, and experimental weighted pseudo-SAGE |
-| `common_slope_nmf/squarem.py` | Implemented | Safeguarded full-sweep SQUAREM acceleration for fixed-rate and joint decay SAGE maps |
 | `common_slope_nmf/wideband.py` | Planned | Interval-integrated decay atoms and subdivision |
 | `common_slope_nmf/refine.py` | Planned | Component pruning and ordering |
 | `common_slope_nmf/smooth.py` | Planned | Frequency-trajectory parameterization and penalties |
 
-The implemented modules support the validation experiments through the independent-
-frequency decay-detection sweep and three-coupled-room real-RIR experiment, including the
-independent-frequency joint rate/amplitude step, seeded stochastic two-slope run, and a
-controlled weighted pseudo-SAGE comparison, decay-initialization basin scan, and one
-equal-base-sweep SQUAREM convergence comparison with a weighted-to-ordinary warm-start
-continuation. The weighted variant is implemented for experimentation rather than claimed
-as a monotone-likelihood method. Wideband
-initialization, component selection, and smooth frequency trajectories remain research
-plans.
+## Experiment map
 
-The raw SOFA room-transition experiment is implemented in
-`experiments/roomToHallway_omni.py`. It adds SOFA channel loading to `rir.py`, caches the
-agreed 512-sample Hann/512-point FFT powers, and keeps pilot and full weighted pseudo-SAGE
-stages separate so numerical behavior can be reviewed before the full launch.
+| Script | Question |
+| --- | --- |
+| `experiments/synthetic_convergence.py` | One T60 pair: total IS loss and profiled surface |
+| `experiments/synthetic_decay_robustness.py` | Sampled T60 pairs: decay-estimate robustness |
+| `experiments/synthetic_amplitude_identifiability.py` | Known T60 pair: amplitude masking and uncertainty |
+| `experiments/fit_coupled_rooms.py` | Three-coupled-room RIR fits |
+| `experiments/refine_coupled_rooms_unweighted.py` | Ordinary-SAGE continuation from saved coupled-room fits |
+| `experiments/roomToHallway_omni.py` | Room-transition SOFA RIR fits |
+| `experiments/roomToHallway_georg_benchmarks.py` | External DecayFitNet/CommonSlopeAnalysis comparison |
+
+Plot functions live in their experiments; `_run_output.py` only creates run directories.
+See [Experiments](EXPERIMENTS.md) for configurations, commands, and interpretation.
+SQUAREM and historical scripts are preserved on `feat/squarem`.
+
+The weighted variant remains experimental, without a monotone-likelihood claim.
+Wideband initialization, component selection, and smooth frequency trajectories remain
+research plans. Existing result objects provide total IS and rate histories and optional
+intermediate responsibilities/profile moments. General package checkpoint APIs remain
+separate from the experiment-specific numerical archives.

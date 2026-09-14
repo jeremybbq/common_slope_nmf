@@ -114,7 +114,7 @@ These are experiment candidates, not validated replacements:
 - Compare log-amplitude L-BFGS-B with a direct non-negative parameterization.
   Log parameters remain positive and cannot represent an exact zero without a
   lower bound, so active-set behavior needs explicit testing.
-- Extend the single fixed-data SQUAREM comparison across new datasets, initializations,
+- On `feat/squarem`, extend the single fixed-data SQUAREM comparison across new datasets, initializations,
   slope separations, and equal-work/equal-runtime budgets; also test Anderson acceleration
   and over-relaxation with the same original-objective safeguard.
 - Compare the published IS-NMF multiplicative update as another supplied-atom

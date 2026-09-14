@@ -1,6 +1,6 @@
 # multi_slope_NMF
 
-Research scaffold for estimating multiple, frequency-dependent room-acoustic decay
+Research package for estimating multiple, frequency-dependent room-acoustic decay
 processes from sets of room impulse responses (RIRs). The target method is a
 wideband-initialized, gridless IS-SAGE estimator: an Itakura-Saito (IS) likelihood
 with physically constrained exponential variance components.
@@ -35,11 +35,11 @@ independent-frequency joint decay-rate estimation.
 ```text
 common_slope_nmf/  Importable model, objective, synthesis, and SAGE utilities
 tests/             Deterministic convention, recovery, and statistical tests
-examples/          Reproducible validation analyses and figures
+experiments/       Synthetic and real-data experiments with local plots
 docs/              Research specification and project index
 ```
 
-Every example that writes artifacts creates a unique timestamped directory under
+Every experiment that writes artifacts creates a unique timestamped directory under
 `output/YYYY-MM-DD_HH-MM-SS-ffffff/`, keeping figures and numerical diagnostics from one
 run together.
 
@@ -86,18 +86,36 @@ result = pseudo_decay_sage(
 )
 ```
 
-Run `python -m examples.demo_synth_init_fit` for the corresponding executable
-demonstration and timestamped diagnostic outputs.
+Run the three synthetic experiments from the repository root:
+
+```bash
+python -m experiments.synthetic_convergence
+python -m experiments.synthetic_decay_robustness
+python -m experiments.synthetic_amplitude_identifiability
+```
+
+They cover one-pair convergence/loss geometry, pooled-pair decay robustness, and
+known-rate amplitude identifiability. Each supports `--plot-results PATH` to regenerate
+figures from saved numerical results. Full configurations and real-data commands are
+in [docs/EXPERIMENTS.md](docs/EXPERIMENTS.md).
+
+Install the numerical package and optional experiment/test dependencies:
+
+```bash
+python -m pip install -e '.[experiments,test]'
+python -m pytest
+```
 
 ## Status
 
-The energy-decay convention, complex-Gaussian generator, IS objective, supplied-atom
-amplitude stage, and independent-frequency profiled decay-rate SAGE are implemented with
-focused tests. Safeguarded full-sweep SQUAREM wrappers accelerate the fixed-rate and joint
-decay SAGE maps while retaining the original IS objective and an ordinary-SAGE fallback.
-An optional component-strength-weighted pseudo-SAGE M-step is also implemented as an
-experimental comparison; unlike exact SAGE, it does not assume a monotone observed
-objective. One controlled fixed-data SQUAREM convergence comparison is recorded in
-`docs/EXPERIMENTS.md`; broader acceleration benchmarks remain pending. The next
-model-development milestones are small-component-count enumeration, wideband localization,
-pruning, and smooth frequency trajectories.
+The numerical package implements synthesis, initialization, fixed-rate amplitude SAGE,
+and independent-frequency decay SAGE, including responsibility-weighted pseudo-SAGE.
+Results include total IS-loss and decay-rate histories, final parameter estimates, and
+optional intermediate responsibilities and profile moments. Weighted updates do not
+guarantee a monotone observed objective.
+
+Experiment archives provide saved results and replotting. A general package-level
+checkpoint API is separate future work. Wideband localization, component selection,
+and smooth frequency trajectories remain research plans.
+
+SQUAREM and the historical synthetic experiments are preserved on `feat/squarem`.
