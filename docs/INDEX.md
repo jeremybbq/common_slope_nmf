@@ -42,14 +42,14 @@ shared across RIRs, with non-negative per-RIR amplitudes and noise floors.
 | `experiments/synthetic_convergence.py` | One T60 pair: total IS loss and profiled surface |
 | `experiments/synthetic_decay_robustness.py` | Sampled T60 pairs: decay-estimate robustness |
 | `experiments/synthetic_amplitude_identifiability.py` | Known T60 pair: amplitude masking and uncertainty |
-| `experiments/fit_coupled_rooms.py` | Three-coupled-room RIR fits |
-| `experiments/refine_coupled_rooms_unweighted.py` | Ordinary-SAGE continuation from saved coupled-room fits |
-| `experiments/roomToHallway_omni.py` | Room-transition SOFA RIR fits |
+| `experiments/roomToHallway_omni.py` | Main recorded-RIR application: coupled-room transition |
 | `experiments/roomToHallway_georg_benchmarks.py` | External DecayFitNet/CommonSlopeAnalysis comparison |
 
 Plot functions live in their experiments; `_run_output.py` only creates run directories.
 See [Experiments](EXPERIMENTS.md) for configurations, commands, and interpretation.
 SQUAREM and historical scripts are preserved on `feat/squarem`.
+The three-room Treble simulation scripts, tests, and findings are preserved on
+`feat/treble-simulation`.
 
 The weighted variant remains experimental, without a monotone-likelihood claim.
 Wideband initialization, component selection, and smooth frequency trajectories remain

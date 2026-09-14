@@ -99,6 +99,17 @@ known-rate amplitude identifiability. Each supports `--plot-results PATH` to reg
 figures from saved numerical results. Full configurations and real-data commands are
 in [docs/EXPERIMENTS.md](docs/EXPERIMENTS.md).
 
+The paper's main recorded-RIR application is the coupled-room transition dataset:
+
+```bash
+python -m experiments.roomToHallway_omni --stage pilot
+python -m experiments.roomToHallway_omni --stage full
+```
+
+`experiments/roomToHallway_georg_benchmarks.py` provides the corresponding external
+baselines. Dataset preparation and external model requirements are documented in
+[docs/EXPERIMENTS.md](docs/EXPERIMENTS.md).
+
 Install the numerical package and optional experiment/test dependencies:
 
 ```bash
@@ -119,3 +130,5 @@ checkpoint API is separate future work. Wideband localization, component selecti
 and smooth frequency trajectories remain research plans.
 
 SQUAREM and the historical synthetic experiments are preserved on `feat/squarem`.
+The three-room Treble simulation scripts, tests, and findings are preserved on
+`feat/treble-simulation`.
