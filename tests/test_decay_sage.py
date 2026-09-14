@@ -416,6 +416,60 @@ def test_pseudo_decay_sage_rejects_invalid_weight_power(
         )
 
 
+@pytest.mark.parametrize(
+    ("decay_tol", "error_type"),
+    [(-1.0, ValueError), (np.inf, ValueError), (True, TypeError)],
+)
+def test_decay_sage_rejects_invalid_outer_decay_tolerance(
+    decay_tol, error_type
+):
+    with pytest.raises(error_type, match="decay_tol"):
+        pseudo_decay_sage(
+            np.ones((1, 1, 10)),
+            np.arange(10, dtype=np.float64) * 0.01,
+            np.ones((1, 1)),
+            rate_bounds_per_s=(0.5, 2.0),
+            decay_tol=decay_tol,
+        )
+
+
+def test_outer_decay_tolerance_stops_when_either_gate_is_met():
+    times_s = np.arange(61, dtype=np.float64) * 0.01
+    power = exponential_variance(
+        times_s,
+        np.array([[3.0, 9.0]]),
+        np.array([[[0.8, 0.2]], [[0.2, 0.9]]]),
+        noise_floor=np.array([[2e-3], [3e-3]]),
+    )
+    common = dict(
+        rate_bounds_per_s=(1.0, 12.0),
+        component_weight_power=1.0,
+        initial_amplitudes=np.full((2, 1, 2), 0.4),
+        initial_noise_floor=np.full((2, 1), 1e-2),
+        max_iter=2,
+        tol=0.0,
+    )
+
+    decay_stopped = pseudo_decay_sage(
+        power,
+        times_s,
+        np.array([[5.0, 7.0]]),
+        decay_tol=1e6,
+        **common,
+    )
+    objective_only = pseudo_decay_sage(
+        power,
+        times_s,
+        np.array([[5.0, 7.0]]),
+        decay_tol=None,
+        **common,
+    )
+
+    assert decay_stopped.converged
+    assert decay_stopped.n_iter == 1
+    assert objective_only.n_iter == 2
+
+
 def test_rate_update_rejects_zero_total_surrogate_weight():
     with pytest.raises(ValueError, match="positive frame sums"):
         update_rates_newton(

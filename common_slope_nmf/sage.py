@@ -109,7 +109,8 @@ class DecaySAGEResult:
     n_iter
         Number of completed component sweeps.
     converged
-        Whether the relative objective-decrease stopping rule was met.
+        Whether the relative objective-decrease rule or an enabled outer
+        decay-stability rule was met.
     """
 
     rates_per_s: NDArray[np.float64]
@@ -743,6 +744,7 @@ def _decay_sage_impl(
     estimate_noise_floor: bool = True,
     max_iter: int = 2_000,
     tol: float = 1e-6,
+    decay_tol: float | None = None,
     min_amplitude: float = np.finfo(np.float64).tiny,
     rate_method: Literal["newton", "bisection"] = "newton",
     rate_max_iter: int | None = None,
@@ -775,6 +777,14 @@ def _decay_sage_impl(
         Maximum number of complete component sweeps.
     tol
         Non-negative relative objective-decrease tolerance.
+    decay_tol
+        Optional non-negative outer decay-stability tolerance. After each
+        complete sweep, the maximum absolute log-ratio between the new and
+        previous decay rates is evaluated. This equals the corresponding
+        absolute log-ratio for energy-``T60`` and approximates relative
+        fractional change near convergence. The fit stops when either this
+        condition or the observed-objective condition is met. ``None`` uses
+        only the objective condition.
     min_amplitude
         Positive lower bound in variance units after amplitude/floor updates.
     rate_method
@@ -824,6 +834,12 @@ def _decay_sage_impl(
     if n_components == 0:
         raise ValueError("at least one decay component is required.")
     _check_controls(max_iter, tol, min_amplitude)
+    if decay_tol is not None:
+        if not np.isscalar(decay_tol) or isinstance(decay_tol, bool):
+            raise TypeError("decay_tol must be a real scalar or None.")
+        decay_tol = float(decay_tol)
+        if not np.isfinite(decay_tol) or decay_tol < 0.0:
+            raise ValueError("decay_tol must be finite and non-negative.")
     if rate_method not in {"newton", "bisection"}:
         raise ValueError("rate_method must be 'newton' or 'bisection'.")
     if rate_max_iter is None:
@@ -979,11 +995,15 @@ def _decay_sage_impl(
             )
         history.append(float(is_divergence(power, variance)))
         rate_history.append(rates.copy())
-        if _has_converged(
+        objective_converged = _has_converged(
             history,
             tol,
             require_monotone=component_weight_power is None,
-        ):
+        )
+        decay_converged = decay_tol is not None and np.max(
+            np.abs(np.log(rate_history[-1] / rate_history[-2]))
+        ) <= decay_tol
+        if objective_converged or decay_converged:
             converged = True
             break
 
@@ -1041,6 +1061,7 @@ def decay_sage(
     estimate_noise_floor: bool = True,
     max_iter: int = 2_000,
     tol: float = 1e-6,
+    decay_tol: float | None = None,
     min_amplitude: float = np.finfo(np.float64).tiny,
     rate_method: Literal["newton", "bisection"] = "newton",
     rate_max_iter: int | None = None,
@@ -1062,6 +1083,8 @@ def decay_sage(
     sequentially. ``rate_method`` selects safeguarded Newton (the default) or
     bracketed bisection for the profiled decay update. ``diagnostic_interval``
     optionally records the first and every requested complete sweep.
+    ``decay_tol`` optionally stops when the decay estimates stabilize; this is
+    combined with the observed-objective ``tol`` using an OR rule.
     """
 
     return _decay_sage_impl(
@@ -1074,6 +1097,7 @@ def decay_sage(
         estimate_noise_floor=estimate_noise_floor,
         max_iter=max_iter,
         tol=tol,
+        decay_tol=decay_tol,
         min_amplitude=min_amplitude,
         rate_method=rate_method,
         rate_max_iter=rate_max_iter,
@@ -1095,6 +1119,7 @@ def pseudo_decay_sage(
     estimate_noise_floor: bool = True,
     max_iter: int = 2_000,
     tol: float = 1e-6,
+    decay_tol: float | None = None,
     min_amplitude: float = np.finfo(np.float64).tiny,
     rate_method: Literal["newton", "bisection"] = "newton",
     rate_max_iter: int | None = None,
@@ -1122,6 +1147,8 @@ def pseudo_decay_sage(
     This is an experimental weighted objective, not an exact SAGE auxiliary
     function for the observed-data likelihood. Consequently its observed IS
     objective history is monitored but is not guaranteed to be monotone.
+    ``decay_tol`` optionally stops when decay estimates stabilize and is
+    combined with the observed-objective ``tol`` using an OR rule.
     """
 
     return _decay_sage_impl(
@@ -1134,6 +1161,7 @@ def pseudo_decay_sage(
         estimate_noise_floor=estimate_noise_floor,
         max_iter=max_iter,
         tol=tol,
+        decay_tol=decay_tol,
         min_amplitude=min_amplitude,
         rate_method=rate_method,
         rate_max_iter=rate_max_iter,
