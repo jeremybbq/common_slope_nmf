@@ -34,6 +34,20 @@ instantaneous RIR energy using a LINEX loss and alpha continuation. Reuse its nu
 discipline, synthesis conventions, tests, and documentation style; retain the distinction
 between its fixed-rate energy-domain objective and this repository's STFT-power IS model.
 
+## DecayFitNet and CommonSlopeAnalysis benchmarks
+
+- G. Götz, R. Falcón Pérez, S. J. Schlecht, and V. Pulkki, “Neural network for
+  multi-exponential sound energy decay analysis,” *JASA*, vol. 152, no. 2,
+  pp. 942–953, 2022. <https://doi.org/10.1121/10.0013416>.
+- G. Götz, S. J. Schlecht, and V. Pulkki, “Common-slope modeling of late
+  reverberation,” *IEEE/ACM TASLP*, vol. 31, pp. 3945–3957, 2023.
+  <https://doi.org/10.1109/TASLP.2023.3317572>.
+
+The Python benchmark port is limited to preprocessing, common-time clustering,
+and log-EDC amplitude fitting. DecayFitNet ONNX weights and transforms remain
+external. Copyright and MIT-license attribution are in
+`THIRD_PARTY_NOTICES.md`.
+
 ## Literature to cite before publication
 
 - C. Févotte, N. Bertin, and J.-L. Durrieu, “Nonnegative Matrix Factorization with the

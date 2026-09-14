@@ -18,6 +18,7 @@ dependencies = [
 [project.optional-dependencies]
 test = ["pytest>=7.0"]
 examples = ["h5py>=3.7", "matplotlib>=3.7"]
+decayfitnet = ["onnxruntime>=1.16"]
 
 [tool.setuptools]
 packages = ["common_slope_nmf"]
