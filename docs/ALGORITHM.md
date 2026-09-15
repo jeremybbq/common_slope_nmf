@@ -92,9 +92,9 @@ The returned diagnostics contain both the observed IS objective and the complete
 array before the first sweep and after every completed sweep, allowing raw-objective and
 rate-trajectory plots without altering the update schedule.
 
-### Experimental component-strength-weighted profile
+### Experimental contribution-weighted profile
 
-`pseudo_decay_sage` keeps the same E-step and sequential component schedule, but changes
+`cw_decay_sage` keeps the same E-step and sequential component schedule, but changes
 the decay-component M-step. Immediately before updating component `k`, evaluate its
 current Wiener strength `rho_k = C_k / V`, choose a non-negative exponent `p`, and freeze
 
@@ -125,8 +125,8 @@ not differentiated or refreshed inside one M-step. The noise-floor update stays
 unweighted. `p = 0` gives unit decay-component weights and recovers the ordinary update;
 `p = 1` and `p = 2` select `rho` and `rho**2` weighting.
 
-This weighted criterion is deliberately named pseudo-SAGE: it is an experimental local
-reweighting and has not been established as an auxiliary function for the original
+CW-SAGE is an experimental local reweighting and has not been established as an
+auxiliary function for the original
 observed likelihood. Therefore the total observed IS objective is still recorded at each
 sweep, but monotonic decrease is not assumed or enforced. Numerical experiments must
 report any increases rather than presenting this variant as a validated acceleration.

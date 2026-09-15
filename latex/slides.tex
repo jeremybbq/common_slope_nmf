@@ -82,7 +82,7 @@ Only the part where \(\rho_{rnk}\) is large will contribute to loss, which in tu
 
 \end{frame}
 
-\begin{frame}{Pseudo SAGE (?)}
+\begin{frame}{Contribution-weighted SAGE}
 Adding weights to the surrogate loss,
 \[
 \mathcal{Q}_k = \sum_{rn} \textcolor{red}{\rho_{rnk}^p}
@@ -119,7 +119,7 @@ Adding weights to the surrogate loss,
 \begin{figure}
     \centering
     \includegraphics[height=0.7\textheight,keepaspectratio]{../output/2026-08-17_12-27-55-103654/multislope_rho_m0p80_init_2p00_2p00_t60_trajectories.png}
-    \caption{Pseudo SAGE with \(p=1\).}
+    \caption{CW-SAGE with \(p=1\).}
 \end{figure}
 
 \framebreak
@@ -127,7 +127,7 @@ Adding weights to the surrogate loss,
 \begin{figure}
     \centering
     \includegraphics[height=0.7\textheight,keepaspectratio]{../output/2026-08-17_12-35-12-745307/multislope_rho_m0p80_init_2p00_2p00_t60_trajectories.png}
-    \caption{Pseudo SAGE with \(p=2\). \textcolor{red}{Notice the bigger bias!}}
+    \caption{CW-SAGE with \(p=2\). \textcolor{red}{Notice the bigger bias!}}
 \end{figure}
 
 \end{frame}

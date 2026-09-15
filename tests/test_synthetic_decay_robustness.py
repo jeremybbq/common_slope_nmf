@@ -2,13 +2,15 @@ import numpy as np
 
 from experiments.synthetic_decay_robustness import (
     DIRICHLET_ALPHA,
+    METHOD_LABELS,
     METHOD_POWERS,
     run_identifiability_comparison,
 )
 
 
-def test_identifiability_comparison_uses_only_two_pseudo_sage_orders():
+def test_identifiability_comparison_uses_only_two_cw_sage_orders():
     assert METHOD_POWERS == (1.0, 2.0)
+    assert METHOD_LABELS == (r"CW-SAGE ($p=1$)", r"CW-SAGE ($p=2$)")
     assert DIRICHLET_ALPHA == 0.5
 
 

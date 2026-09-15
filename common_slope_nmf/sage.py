@@ -752,7 +752,7 @@ def _decay_sage_impl(
     diagnostic_interval: int | None = None,
     component_weight_power: float | None = None,
 ) -> DecaySAGEResult:
-    """Implement exact or component-strength-weighted decay SAGE.
+    """Implement exact or contribution-weighted decay SAGE.
 
     Parameters
     ----------
@@ -1107,7 +1107,7 @@ def decay_sage(
     )
 
 
-def pseudo_decay_sage(
+def cw_decay_sage(
     observed_power: ArrayLike,
     times_s: ArrayLike,
     initial_rates_per_s: ArrayLike,
@@ -1126,7 +1126,7 @@ def pseudo_decay_sage(
     rate_tol: float | None = None,
     diagnostic_interval: int | None = None,
 ) -> DecaySAGEResult:
-    """Run component-strength-weighted pseudo-SAGE decay updates.
+    """Run contribution-weighted CW-SAGE decay updates.
 
     Input and output shapes and units match :func:`decay_sage`. Before each
     decay-component M-step, this variant evaluates the current Wiener strength

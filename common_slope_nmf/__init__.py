@@ -38,7 +38,7 @@ from .sage import (
     amplitude_sage,
     decay_sage,
     init_decay_sage,
-    pseudo_decay_sage,
+    cw_decay_sage,
     update_rates_bisection,
     update_rates_newton,
 )
@@ -82,7 +82,7 @@ __all__ = [
     "is_divergence",
     "load_srir_channel",
     "load_sofa_channel",
-    "pseudo_decay_sage",
+    "cw_decay_sage",
     "rate_to_t60",
     "resample_rirs",
     "rir_stft_power",

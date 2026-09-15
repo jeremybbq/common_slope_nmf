@@ -476,7 +476,7 @@ def plot_t60_comparison(
             Line2D([], [], color="black", linestyle="--", linewidth=1.3,
                    label="Linear fit"),
             Line2D([], [], color="black", linewidth=1.25,
-                   label="NMR/RW-SAGE"),
+                   label="NMR/CW-SAGE"),
             Patch(facecolor="black", edgecolor="black", alpha=0.32,
                   label="DecayFitNet"),
             Line2D([], [], color="black", linestyle="none", marker="x",

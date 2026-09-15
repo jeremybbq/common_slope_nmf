@@ -15,7 +15,7 @@ from common_slope_nmf import (
     decay_sage,
     exponential_variance,
     init_decay_sage,
-    pseudo_decay_sage,
+    cw_decay_sage,
     rate_to_t60,
     sample_power,
     t60_to_rate,
@@ -575,7 +575,7 @@ def _fit_method(
     )
     if component_weight_power is None:
         return decay_sage(observed_power, times_s, init.rates_per_s, **common)
-    return pseudo_decay_sage(
+    return cw_decay_sage(
         observed_power,
         times_s,
         init.rates_per_s,

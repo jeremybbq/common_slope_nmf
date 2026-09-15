@@ -13,8 +13,8 @@ python -m experiments.synthetic_convergence
 ```
 
 Fix the true pair at `[0.80, 1.40]` s, generate 256 RIR realizations with 256
-frames at a 128/24000 s hop, and compare ordinary SAGE with responsibility-weighted
-pseudo-SAGE (`rho` and `rho**2`) on exactly the same observations and initialization.
+frames at a 128/24000 s hop, and compare ordinary SAGE with contribution-weighted
+CW-SAGE (`rho` and `rho**2`) on exactly the same observations and initialization.
 For each RIR, the first unit-sum amplitude is Uniform(0, 1) and the second is its
 complement; floors have mean -40 dB and standard
 deviation 2/3 dB. The default trajectory budget is 1,000 sweeps.
@@ -131,7 +131,7 @@ conditions and the FFT bins nearest 250, 500, 1000, 2000, 4000, and 8000 Hz. Com
 K=1,2,3 under equal pooled-log-linear and log-spaced rate starts; K=1 has only the equal
 start because both rules coincide. Decay amplitude is divided equally after subtracting
 the initialized tail-average floor from the leading-frame power. Fit a per-RIR,
-per-frequency constant floor and use `rho` as the pseudo-SAGE surrogate weight. The
+per-frequency constant floor and use `rho` as the CW-SAGE surrogate weight. The
 weighted method remains experimental, so a finite-result and objective-growth gate is a
 numerical diagnostic rather than a validation claim.
 

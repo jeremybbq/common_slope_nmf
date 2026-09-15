@@ -46,4 +46,4 @@ lambda0[f,k]  = clipped pooled coarse rate at f.
 The leading-frame amplitude is not corrected for the initialized floor. Every component
 starts at the same coarse rate, clipped to the common intersection of its supplied rate
 bounds. The returned `DecaySAGEInit` contains arrays ready for `decay_sage` or
-`pseudo_decay_sage`, together with the unclipped `DecayFit` diagnostics.
+`cw_decay_sage`, together with the unclipped `DecayFit` diagnostics.

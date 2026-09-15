@@ -1,4 +1,4 @@
-"""Fit rho-weighted pseudo-SAGE to the raw room-to-hallway omni RIRs.
+"""Fit contribution-weighted CW-SAGE to the raw room-to-hallway omni RIRs.
 
 The four v1.3 Meeting Room to Hallway SOFA files are pooled for common decay
 rates.  Each measurement, source condition, and frequency retains independent
@@ -10,7 +10,7 @@ retained frame to decay time zero.
 
 The default pilot compares K=1,2,3 and two deterministic initializations at six
 representative FFT bins.  A full fit is a separate explicit stage so pilot
-results can be reviewed first.  Weighted pseudo-SAGE is experimental and its
+results can be reviewed first.  Contribution-weighted CW-SAGE is experimental and its
 observed IS objective is monitored rather than assumed to be monotone.
 """
 
@@ -29,7 +29,7 @@ from common_slope_nmf import (
     init_decay_sage,
     inspect_sofa_dataset,
     load_sofa_channel,
-    pseudo_decay_sage,
+    cw_decay_sage,
     rate_to_t60,
     rir_stft_power,
     select_stft_frames,
@@ -88,7 +88,7 @@ STRONG_MIXTURE_RGB = np.array([230.0, 228.0, 217.0]) / 255.0  # #E6E4D9
 
 @dataclass(frozen=True)
 class FrequencyFit:
-    """One independent frequency-bin pseudo-SAGE result.
+    """One independent frequency-bin CW-SAGE result.
 
     Amplitudes have shape ``(R,K)`` in variance units, the noise floor has
     shape ``(R,)`` in variance units, and all decay times are energy ``T60``
@@ -487,7 +487,7 @@ def _fit_one_frequency(
         observed_power, times_s, n_components, initialization
     )
     initial_t60 = np.asarray(rate_to_t60(rates[0]))
-    result = pseudo_decay_sage(
+    result = cw_decay_sage(
         observed_power,
         times_s,
         rates,

@@ -11,7 +11,7 @@ from common_slope_nmf import (
     DecaySAGEResult,
     exponential_variance,
     init_decay_sage,
-    pseudo_decay_sage,
+    cw_decay_sage,
     rate_to_t60,
     sample_power,
     sample_simplex_amplitudes,
@@ -35,7 +35,7 @@ DIRICHLET_ALPHA = 0.5
 NOISE_MEAN_DB = -40.0
 NOISE_STD_DB = 2.0 / 3.0
 METHOD_KEYS = ("p1", "p2")
-METHOD_LABELS = (r"Pseudo-SAGE ($p=1$)", r"Pseudo-SAGE ($p=2$)")
+METHOD_LABELS = (r"CW-SAGE ($p=1$)", r"CW-SAGE ($p=2$)")
 METHOD_POWERS = (1.0, 2.0)
 
 
@@ -423,9 +423,9 @@ def _fit_method(
     decay_tol: float,
     rate_method: str,
 ) -> DecaySAGEResult:
-    """Fit one pseudo-SAGE order to power ``(R,F,N)``."""
+    """Fit one contribution-weighted SAGE order to power ``(R,F,N)``."""
 
-    return pseudo_decay_sage(
+    return cw_decay_sage(
         observed_power,
         times_s,
         initial_rates_per_s,
@@ -498,7 +498,7 @@ def run_identifiability_comparison(
     decay_tol: float,
     rate_method: str,
 ) -> dict[str, np.ndarray]:
-    """Fit pseudo-SAGE p=1 and p=2 to independent random T60 pairs.
+    """Fit contribution-weighted SAGE p=1 and p=2 to independent random T60 pairs.
 
     Parameters
     ----------

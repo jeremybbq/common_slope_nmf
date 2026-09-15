@@ -4,7 +4,7 @@ import pytest
 from common_slope_nmf import (
     decay_sage,
     exponential_variance,
-    pseudo_decay_sage,
+    cw_decay_sage,
     t60_to_rate,
     update_rates_bisection,
     update_rates_newton,
@@ -214,7 +214,7 @@ def test_single_decay_rates_and_amplitudes_recover_exact_model():
     assert np.max(np.diff(result.objective_history)) <= 1e-10
 
 
-def test_pseudo_decay_sage_zero_power_matches_ordinary_sage():
+def test_cw_decay_sage_zero_power_matches_ordinary_sage():
     times_s = np.arange(61, dtype=np.float64) * 0.01
     true_rates_per_s = np.array([[3.0, 9.0]])
     true_amplitudes = np.array([[[0.8, 0.15]], [[0.2, 1.1]]])
@@ -240,7 +240,7 @@ def test_pseudo_decay_sage_zero_power_matches_ordinary_sage():
         np.array([[5.0, 7.0]]),
         **common_arguments,
     )
-    weighted = pseudo_decay_sage(
+    weighted = cw_decay_sage(
         power,
         times_s,
         np.array([[5.0, 7.0]]),
@@ -258,7 +258,7 @@ def test_pseudo_decay_sage_zero_power_matches_ordinary_sage():
 
 
 @pytest.mark.parametrize("component_weight_power", [1.0, 2.0])
-def test_pseudo_decay_sage_records_weighted_profile_quantities(
+def test_cw_decay_sage_records_weighted_profile_quantities(
     component_weight_power,
 ):
     times_s = np.arange(51, dtype=np.float64) * 0.01
@@ -269,7 +269,7 @@ def test_pseudo_decay_sage_records_weighted_profile_quantities(
         times_s, rates_per_s, amplitudes, noise_floor=floor
     )
 
-    result = pseudo_decay_sage(
+    result = cw_decay_sage(
         power,
         times_s,
         np.array([[5.0, 8.0]]),
@@ -403,11 +403,11 @@ def test_decay_sage_rejects_invalid_diagnostic_interval(
     ("component_weight_power", "error_type"),
     [(-1.0, ValueError), (np.inf, ValueError), (True, TypeError)],
 )
-def test_pseudo_decay_sage_rejects_invalid_weight_power(
+def test_cw_decay_sage_rejects_invalid_weight_power(
     component_weight_power, error_type
 ):
     with pytest.raises(error_type, match="component_weight_power"):
-        pseudo_decay_sage(
+        cw_decay_sage(
             np.ones((1, 1, 10)),
             np.arange(10, dtype=np.float64) * 0.01,
             np.ones((1, 1)),
@@ -424,7 +424,7 @@ def test_decay_sage_rejects_invalid_outer_decay_tolerance(
     decay_tol, error_type
 ):
     with pytest.raises(error_type, match="decay_tol"):
-        pseudo_decay_sage(
+        cw_decay_sage(
             np.ones((1, 1, 10)),
             np.arange(10, dtype=np.float64) * 0.01,
             np.ones((1, 1)),
@@ -450,14 +450,14 @@ def test_outer_decay_tolerance_stops_when_either_gate_is_met():
         tol=0.0,
     )
 
-    decay_stopped = pseudo_decay_sage(
+    decay_stopped = cw_decay_sage(
         power,
         times_s,
         np.array([[5.0, 7.0]]),
         decay_tol=1e6,
         **common,
     )
-    objective_only = pseudo_decay_sage(
+    objective_only = cw_decay_sage(
         power,
         times_s,
         np.array([[5.0, 7.0]]),

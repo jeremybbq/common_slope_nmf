@@ -30,7 +30,7 @@ shared across RIRs, with non-negative per-RIR amplitudes and noise floors.
 | `common_slope_nmf/rir.py` | Implemented | MATLAB/SOFA RIR loading, pooled global onset, resampling, STFT power, and frame selection |
 | `common_slope_nmf/georg_baselines.py` | Implemented | External DecayFitNet ONNX adapter and Georg-style common-slope EDC clustering/amplitude fit |
 | `common_slope_nmf/is_objective.py` | Implemented | IS divergence and Gaussian variance criterion |
-| `common_slope_nmf/sage.py` | Implemented | Supplied-atom amplitudes, profiled decay-rate SAGE, and experimental weighted pseudo-SAGE |
+| `common_slope_nmf/sage.py` | Implemented | Supplied-atom amplitudes, profiled decay-rate SAGE, and experimental contribution-weighted CW-SAGE |
 | `common_slope_nmf/wideband.py` | Planned | Interval-integrated decay atoms and subdivision |
 | `common_slope_nmf/refine.py` | Planned | Component pruning and ordering |
 | `common_slope_nmf/smooth.py` | Planned | Frequency-trajectory parameterization and penalties |

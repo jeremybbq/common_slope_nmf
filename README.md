@@ -50,7 +50,7 @@ import numpy as np
 
 from common_slope_nmf import (
     init_decay_sage,
-    pseudo_decay_sage,
+    cw_decay_sage,
     sample_multislope_data,
     t60_to_rate,
 )
@@ -75,7 +75,7 @@ init = init_decay_sage(
     n_components=2,
     rate_bounds_per_s=rate_bounds,
 )
-result = pseudo_decay_sage(
+result = cw_decay_sage(
     data.observed_power,
     data.times_s,
     init.rates_per_s,
@@ -120,7 +120,7 @@ python -m pytest
 ## Status
 
 The numerical package implements synthesis, initialization, fixed-rate amplitude SAGE,
-and independent-frequency decay SAGE, including responsibility-weighted pseudo-SAGE.
+and independent-frequency decay SAGE, including contribution-weighted CW-SAGE.
 Results include total IS-loss and decay-rate histories, final parameter estimates, and
 optional intermediate responsibilities and profile moments. Weighted updates do not
 guarantee a monotone observed objective.
