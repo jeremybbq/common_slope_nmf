@@ -18,7 +18,6 @@ from common_slope_nmf import (
     pseudo_decay_sage,
     rate_to_t60,
     sample_power,
-    sample_simplex_amplitudes,
     t60_to_rate,
 )
 from typing import Sequence
@@ -39,7 +38,6 @@ TRUE_T60_S = np.array([0.80, 1.40], dtype=np.float64)
 SHORT_T60_RANGE_S = (0.6, 1.4)
 LONG_T60_RANGE_S = (1.0, 1.8)
 SURFACE_GRID_SIZE = 21
-DIRICHLET_ALPHA = 0.5
 NOISE_MEAN_DB = -40.0
 NOISE_STD_DB = 2.0 / 3.0
 DECAY_LOSS_TOL = 0.0
@@ -47,8 +45,8 @@ SURFACE_LOSS_TOL = 1e-6
 METHOD_KEYS = ("ordinary", "p1", "p2")
 METHOD_LABELS = (
     r"SAGE ($p=0$)",
-    r"RW-SAGE ($p=1$)",
-    r"RW-SAGE ($p=2$)",
+    r"CW-SAGE ($p=1$)",
+    r"CW-SAGE ($p=2$)",
 )
 METHOD_POWERS: tuple[float | None, ...] = (None, 1.0, 2.0)
 METHOD_COLORS = ("C2", "C0", "C1")
@@ -96,6 +94,8 @@ def plot_weight_order_objectives(
     case_labels: Sequence[str],
     *,
     colors: Sequence[str] | None = None,
+    trajectories_by_case: Sequence[Sequence[ArrayLike]] | None = None,
+    true_t60_s: ArrayLike | None = None,
 ) -> Figure:
     """Compare observed IS-loss excess histories on logarithmic axes.
 
@@ -111,6 +111,10 @@ def plot_weight_order_objectives(
         Labels for the ``C`` decay-pair cases.
     colors
         Optional ``M`` Matplotlib colors, shared between panels.
+    trajectories_by_case, true_t60_s
+        Optional per-sweep T60 trajectories, indexed as ``[case][method]``,
+        and the true two-element T60 pair in seconds. When supplied, dashed
+        Euclidean T60-pair errors are overlaid on a linear right-hand axis.
 
     Returns
     -------
@@ -129,11 +133,21 @@ def plot_weight_order_objectives(
         raise ValueError("each case must contain one history per method.")
     if colors is not None and len(colors) != n_methods:
         raise ValueError("colors must match the number of methods.")
+    if (trajectories_by_case is None) != (true_t60_s is None):
+        raise ValueError("trajectories_by_case and true_t60_s must be supplied together.")
+    if trajectories_by_case is not None:
+        if len(trajectories_by_case) != n_cases or any(
+            len(case) != n_methods for case in trajectories_by_case
+        ):
+            raise ValueError("each case must contain one T60 trajectory per method.")
+        truth = np.sort(np.asarray(true_t60_s, dtype=np.float64))
+        if truth.shape != (2,) or not np.all(np.isfinite(truth)):
+            raise ValueError("true_t60_s must be finite with shape (2,).")
 
     figure, axes = plt.subplots(
         1,
         n_cases,
-        figsize=((3.45, 2.3) if n_cases == 1 else (7.10, 3.4)),
+        figsize=((3.45, 2.1) if n_cases == 1 else (7.10, 3.4)),
         squeeze=False,
         sharey=False,
         layout="constrained",
@@ -183,7 +197,7 @@ def plot_weight_order_objectives(
         upper_log = float(np.log10(np.max(positive)))
         margin = max(0.025 * (upper_log - lower_log), 0.02)
         axis.set(
-            xlabel="Complete component sweeps",
+            xlabel="Iterations",
             ylabel=(
                 "Excess loss "
                 r"$\Delta\mathcal{L}_{\mathrm{IS}}(\mathbf{Y}\mid\mathbf{V})$"
@@ -199,7 +213,30 @@ def plot_weight_order_objectives(
         axis.yaxis.label.set_size(8 if n_cases == 1 else 9)
         axis.tick_params(labelsize=7 if n_cases == 1 else 8)
         axis.grid(alpha=0.22, linewidth=0.5)
-    axes[0, 0].legend(fontsize=7 if n_cases == 1 else 8)
+        if trajectories_by_case is not None:
+            error_axis = axis.twinx()
+            for method_index, trajectory in enumerate(trajectories_by_case[case_index]):
+                path = np.asarray(trajectory, dtype=np.float64)
+                if (
+                    path.ndim != 2
+                    or path.shape[1] != 2
+                    or path.shape[0] == 0
+                    or not np.all(np.isfinite(path))
+                ):
+                    raise ValueError("each T60 trajectory must be finite with shape (S,2).")
+                distance_s = np.linalg.norm(np.sort(path, axis=1) - truth, axis=1)
+                error_axis.plot(
+                    np.arange(distance_s.size),
+                    distance_s,
+                    color=None if colors is None else colors[method_index],
+                    linestyle="--",
+                    linewidth=1.0,
+                    alpha=0.9,
+                )
+            error_axis.set_ylabel("Estimated-to-true RT distance (s)")
+            error_axis.yaxis.label.set_size(8 if n_cases == 1 else 9)
+            error_axis.tick_params(labelsize=7 if n_cases == 1 else 8)
+    axes[0, 0].legend(loc="upper right", fontsize=7 if n_cases == 1 else 8)
     return figure
 
 @plt.rc_context({"font.family": "Liberation Serif", "mathtext.fontset": "stix"})
@@ -290,7 +327,7 @@ def plot_profiled_t60_loss_surface(
     # Reserve the right side explicitly: axes appended by ``axes_grid1`` keep
     # the colorbar exactly as tall as the square data axes, but are invisible
     # to Matplotlib's constrained-layout calculation.
-    figure.subplots_adjust(left=0.14, right=0.86, bottom=0.27, top=0.976)
+    figure.subplots_adjust(left=0.10, right=0.96, bottom=0.30, top=0.976)
     image = axis.imshow(
         display,
         origin="lower",
@@ -398,12 +435,12 @@ def plot_profiled_t60_loss_surface(
         color="#ef4444",
         edgecolors="none",
         linewidths=0.0,
-        label="True RT60s",
+        label="True RTs",
         zorder=11,
     )
     axis.set(
-        xlabel="Fast decay RT60 (s)",
-        ylabel="Slow decay RT60 (s)",
+        xlabel="Fast decay RT (s)",
+        ylabel="Slow decay RT (s)",
         xlim=(short[0], short[-1]),
         ylim=(long[0], long[-1]),
     )
@@ -417,7 +454,7 @@ def plot_profiled_t60_loss_surface(
     label_to_handle = dict(zip(labels, handles, strict=True))
     legend_order = [
         *method_labels,
-        "True RT60s",
+        "True RTs",
         "Linear fit" if "Linear fit" in label_to_handle else "Linear fits",
         "Profiled grid minimum",
     ]
@@ -431,9 +468,9 @@ def plot_profiled_t60_loss_surface(
         frameon=False,
     )
     divider = make_axes_locatable(axis)
-    colorbar_axis = divider.append_axes("right", size="4.5%", pad=0.16)
+    colorbar_axis = divider.append_axes("right", size="4.5%", pad=0.10)
     colorbar = figure.colorbar(image, cax=colorbar_axis)
-    colorbar.ax.yaxis.set_label_position("left")
+    colorbar.ax.yaxis.set_label_position("right")
     colorbar.set_label("Profiled excess loss", fontsize=8, labelpad=1)
     colorbar.ax.tick_params(labelsize=7)
     return figure
@@ -581,14 +618,8 @@ def run_loss_comparison(
         shape ``(R,1,2)`` and sum to one at time zero.
     """
 
-    true_amplitudes = sample_simplex_amplitudes(
-        n_rirs,
-        1,
-        N_COMPONENTS,
-        concentration=DIRICHLET_ALPHA,
-        total_amplitude=1.0,
-        rng=rng,
-    )
+    first_amplitude = rng.uniform(0.0, 1.0, size=(n_rirs, 1, 1))
+    true_amplitudes = np.concatenate((first_amplitude, 1.0 - first_amplitude), axis=2)
     noise_level_db = rng.normal(NOISE_MEAN_DB, NOISE_STD_DB, size=(n_rirs, 1))
     true_noise_floor = 10.0 ** (noise_level_db / 10.0)
     exact_variance = exponential_variance(
@@ -868,25 +899,17 @@ def save_loss_figure(
     histories: list[list[np.ndarray]],
     *,
     show: bool,
+    trajectories: list[np.ndarray] | None = None,
 ) -> tuple[Path, Path]:
-    """Save single-column PDF/PNG loss figures and return their paths."""
-
-    with plt.rc_context({"font.size": 8, "axes.labelsize": 8,
-                         "xtick.labelsize": 7, "ytick.labelsize": 7,
-                         "legend.fontsize": 7}):
-        raw_figure, axis = plt.subplots(figsize=(3.45, 2.3), layout="constrained")
-        for history, label, color in zip(histories[0], METHOD_LABELS, METHOD_COLORS, strict=True):
-            axis.plot(history, label=label, color=color, linewidth=1.25)
-        axis.set(xlabel="Complete component sweeps", ylabel="Total IS loss")
-        axis.legend()
-        raw_figure.savefig(output_dir / "total_is_loss.pdf")
-        save_figure(raw_figure, output_dir, "total_is_loss.png", show=show, dpi=300)
+    """Save the single-column log-scale excess-loss figure."""
 
     figure = plot_weight_order_objectives(
         histories,
         METHOD_LABELS,
         ("",),
         colors=METHOD_COLORS,
+        trajectories_by_case=None if trajectories is None else [trajectories],
+        true_t60_s=None if trajectories is None else TRUE_T60_S,
     )
     pdf_path = output_dir / "is_loss_convergence.pdf"
     figure.savefig(pdf_path)
@@ -948,7 +971,15 @@ def _plot_saved_results(
         histories = [[row[np.isfinite(row)] for row in case] for case in padded]
         if len(histories) > 1:
             histories = [histories[0]]
-        saved.extend(save_loss_figure(output_dir, histories, show=show))
+        trajectories = None
+        if "t60_trajectory_s" in archive:
+            padded_paths = np.asarray(archive["t60_trajectory_s"])
+            trajectories = [
+                path[np.all(np.isfinite(path), axis=1)] for path in padded_paths
+            ]
+        saved.extend(
+            save_loss_figure(output_dir, histories, show=show, trajectories=trajectories)
+        )
         surface_keys = {
             "surface_short_t60_s",
             "surface_long_t60_s",
@@ -956,10 +987,11 @@ def _plot_saved_results(
             "t60_trajectory_s",
         }
         if surface_keys.issubset(archive.files):
-            padded_paths = np.asarray(archive["t60_trajectory_s"])
-            trajectories = [
-                path[np.all(np.isfinite(path), axis=1)] for path in padded_paths
-            ]
+            if trajectories is None:
+                padded_paths = np.asarray(archive["t60_trajectory_s"])
+                trajectories = [
+                    path[np.all(np.isfinite(path), axis=1)] for path in padded_paths
+                ]
             saved.extend(
                 save_surface_figure(
                     output_dir,
@@ -1026,7 +1058,7 @@ def main() -> None:
     )
 
     figure_paths = [
-        *save_loss_figure(output_dir, histories, show=args.show),
+        *save_loss_figure(output_dir, histories, show=args.show, trajectories=trajectories),
         *save_surface_figure(
             output_dir,
             short_t60_s,
@@ -1079,7 +1111,7 @@ def main() -> None:
         tolerance=np.asarray(args.tol),
         surface_max_iter=np.asarray(args.surface_max_iter),
         surface_tolerance=np.asarray(args.surface_tol),
-        dirichlet_alpha=np.asarray(DIRICHLET_ALPHA),
+        amplitude_sampling=np.asarray("Uniform(0, 1); complementary second component"),
     )
     print(f"initial_t60_s={np.asarray(result['initial_t60_s']).tolist()}")
     print(

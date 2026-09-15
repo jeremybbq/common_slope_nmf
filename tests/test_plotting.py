@@ -47,12 +47,28 @@ def test_weight_order_comparison_plots_accept_multiple_methods_and_cases():
 
     figures = [
         convergence.plot_weight_order_objectives(
-            histories, labels, ("separated", "close")
+            histories,
+            labels,
+            ("separated", "close"),
+            trajectories_by_case=[
+                [
+                    np.array([[0.7, 1.3], [0.61, 1.39], [0.6, 1.4]]),
+                    np.array([[0.7, 1.3], [0.6, 1.4]]),
+                    np.array([[0.7, 1.3], [0.62, 1.41]]),
+                ],
+                [
+                    np.array([[0.7, 1.3], [0.61, 1.39]]),
+                    np.array([[0.7, 1.3], [0.6, 1.4]]),
+                    np.array([[0.7, 1.3], [0.62, 1.41]]),
+                ],
+            ],
+            true_t60_s=np.array([0.6, 1.4]),
         ),
     ]
 
-    assert [len(figure.axes) for figure in figures] == [2]
-    loss_axes = figures[0].axes
+    assert [len(figure.axes) for figure in figures] == [4]
+    loss_axes = figures[0].axes[:2]
+    error_axes = figures[0].axes[2:]
     assert figures[0]._suptitle is None
     np.testing.assert_allclose(figures[0].get_size_inches(), (7.10, 3.4))
     assert [axis.get_yscale() for axis in loss_axes] == ["log", "log"]
@@ -64,6 +80,14 @@ def test_weight_order_comparison_plots_accept_multiple_methods_and_cases():
         [3.0, 1.0],
     )
     assert np.isnan(loss_axes[0].lines[0].get_ydata()[2])
+    assert [axis.get_ylabel() for axis in error_axes] == [
+        "Estimated-to-true RT distance (s)",
+        "Estimated-to-true RT distance (s)",
+    ]
+    np.testing.assert_allclose(
+        error_axes[0].lines[0].get_ydata(),
+        [np.hypot(0.1, -0.1), np.hypot(0.01, -0.01), 0.0],
+    )
     for figure in figures:
         matplotlib.pyplot.close(figure)
 
@@ -94,8 +118,8 @@ def test_profiled_t60_surface_uses_display_only_bicubic_interpolation():
     assert figure.axes[0].images[0].get_interpolation() == "bicubic"
     np.testing.assert_allclose(figure.axes[0].get_xlim(), (0.5, 1.1))
     np.testing.assert_allclose(figure.axes[0].get_ylim(), (0.9, 1.5))
-    assert figure.axes[0].get_xlabel() == "Fast decay RT60 (s)"
-    assert figure.axes[0].get_ylabel() == "Slow decay RT60 (s)"
+    assert figure.axes[0].get_xlabel() == "Fast decay RT (s)"
+    assert figure.axes[0].get_ylabel() == "Slow decay RT (s)"
     assert figure.axes[1].get_ylabel() == "Profiled excess loss"
     assert all(line.get_marker() == "None" for line in figure.axes[0].lines)
     assert all(not line.get_path().should_simplify for line in figure.axes[0].lines)
@@ -106,7 +130,7 @@ def test_profiled_t60_surface_uses_display_only_bicubic_interpolation():
         collection.get_label(): collection
         for collection in figure.axes[0].collections
     }
-    true_marker = collections["True RT60s"]
+    true_marker = collections["True RTs"]
     minimum_marker = collections["Profiled grid minimum"]
     linear_fit_marker = collections["Linear fits"]
     assert true_marker.get_sizes()[0] == 52

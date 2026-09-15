@@ -15,10 +15,11 @@ python -m experiments.synthetic_convergence
 Fix the true pair at `[0.80, 1.40]` s, generate 256 RIR realizations with 256
 frames at a 128/24000 s hop, and compare ordinary SAGE with responsibility-weighted
 pseudo-SAGE (`rho` and `rho**2`) on exactly the same observations and initialization.
-Unit-sum amplitudes follow Dirichlet(0.5); floors have mean -40 dB and standard
+For each RIR, the first unit-sum amplitude is Uniform(0, 1) and the second is its
+complement; floors have mean -40 dB and standard
 deviation 2/3 dB. The default trajectory budget is 1,000 sweeps.
 
-Save raw total IS-loss curves, excess-loss curves, and trajectories over a profiled
+Save log-scale excess-loss curves and trajectories over a profiled
 21-by-21 loss surface. At each supplied rate pair, amplitudes and the floor are
 fit from both continuation and independent starts. Save the selected loss, full
 profiled amplitudes/floors, convergence flags, and discrepancies between starts.

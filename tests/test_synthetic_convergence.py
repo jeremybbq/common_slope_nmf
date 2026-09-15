@@ -1,7 +1,6 @@
 import numpy as np
 
 from experiments.synthetic_convergence import (
-    DIRICHLET_ALPHA,
     DECAY_LOSS_TOL,
     LONG_T60_RANGE_S,
     N_FRAMES,
@@ -30,7 +29,7 @@ def test_loss_surface_experiment_uses_requested_lightweight_setup():
     assert SURFACE_LOSS_TOL == 1e-6
 
 
-def test_small_loss_comparison_uses_fixed_sum_beta_half_amplitudes():
+def test_small_loss_comparison_uses_uniform_complementary_amplitudes():
     times_s = np.arange(100, dtype=np.float64) * (128.0 / 24_000.0)
     result = run_loss_comparison(
         np.random.default_rng(7),
@@ -42,8 +41,12 @@ def test_small_loss_comparison_uses_fixed_sum_beta_half_amplitudes():
     )
 
     amplitudes = np.asarray(result["true_amplitudes"])
-    assert DIRICHLET_ALPHA == 0.5
     assert amplitudes.shape == (32, 1, 2)
+    np.testing.assert_allclose(
+        amplitudes[:, :, 0],
+        np.random.default_rng(7).uniform(0.0, 1.0, size=(32, 1)),
+    )
+    np.testing.assert_allclose(amplitudes[:, :, 1], 1.0 - amplitudes[:, :, 0])
     np.testing.assert_allclose(np.sum(amplitudes, axis=2), 1.0)
     initial_t60_s = np.asarray(result["initial_t60_s"])
     assert initial_t60_s.shape == (2,)
