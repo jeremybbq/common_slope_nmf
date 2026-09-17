@@ -7,6 +7,7 @@ from pathlib import Path
 
 import numpy as np
 
+from common_slope_nmf import t60_to_rate
 from experiments.room_to_hallway.omni import (
     FLOOR_RHO_RGB,
     LONG_SLOPE_RGB,
