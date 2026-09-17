@@ -27,14 +27,13 @@ import numpy as np
 from common_slope_nmf import (
     head_power,
     init_decay_sage,
-    inspect_sofa_dataset,
-    load_sofa_channel,
     pseudo_decay_sage,
     rate_to_t60,
     rir_stft_power,
     select_stft_frames,
     t60_to_rate,
 )
+from experiments.datasets import inspect_sofa_dataset, load_sofa_channel
 from examples._run_output import create_run_output_dir
 
 

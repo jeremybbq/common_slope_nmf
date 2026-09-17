@@ -21,13 +21,13 @@ import numpy as np
 from common_slope_nmf import (
     fit_coarse_decay,
     global_energy_onset,
-    load_srir_channel,
     pseudo_decay_sage,
     rate_to_t60,
     resample_rirs,
     rir_stft_power,
     t60_to_rate,
 )
+from experiments.datasets import load_srir_channel
 from examples._run_output import create_run_output_dir
 
 DATASET_PATH = Path("data/srirs.mat")

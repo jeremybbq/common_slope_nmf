@@ -4,13 +4,15 @@ import pytest
 
 from common_slope_nmf import (
     global_energy_onset,
+    resample_rirs,
+    rir_stft_power,
+    select_stft_frames,
+)
+from experiments.datasets import (
     inspect_sofa_dataset,
     inspect_srir_dataset,
     load_sofa_channel,
     load_srir_channel,
-    resample_rirs,
-    rir_stft_power,
-    select_stft_frames,
 )
 
 
