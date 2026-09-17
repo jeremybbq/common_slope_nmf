@@ -14,7 +14,6 @@ from common_slope_nmf import (
     cw_decay_sage,
     rate_to_t60,
     sample_power,
-    sample_simplex_amplitudes,
     sample_t60,
     t60_to_rate,
 )
@@ -28,10 +27,9 @@ SEED = 20260907
 N_RIRS = 512
 N_PAIRS = 100
 N_COMPONENTS = 2
-N_FRAMES = 374
+N_FRAMES = 512
 HOP_S = 128.0 / 24_000.0
 T60_RANGE_S = (0.5, 3.0)
-DIRICHLET_ALPHA = 0.5
 NOISE_MEAN_DB = -40.0
 NOISE_STD_DB = 2.0 / 3.0
 METHOD_KEYS = ("p1", "p2")
@@ -532,14 +530,8 @@ def run_identifiability_comparison(
         n_pairs, N_COMPONENTS, T60_RANGE_S, rng=rng
     )
     true_rates_per_s = np.asarray(t60_to_rate(true_t60_s), dtype=np.float64)
-    true_amplitudes = sample_simplex_amplitudes(
-        n_rirs,
-        n_pairs,
-        N_COMPONENTS,
-        concentration=DIRICHLET_ALPHA,
-        total_amplitude=1.0,
-        rng=rng,
-    )
+    first_amplitude = rng.uniform(0.0, 1.0, size=(n_rirs, n_pairs, 1))
+    true_amplitudes = np.concatenate((first_amplitude, 1.0 - first_amplitude), axis=2)
     noise_level_db = rng.normal(
         NOISE_MEAN_DB, NOISE_STD_DB, size=(n_rirs, n_pairs)
     )
@@ -650,14 +642,14 @@ def save_identifiability_figure(
     output_dir: Path,
     true_t60_s: np.ndarray,
     estimated_t60_s: np.ndarray,
-    converged: np.ndarray,
+    converged: np.ndarray | None,
     *,
     show: bool,
 ) -> Path:
     """Save signed rate-error scatter as PDF/PNG; return the PNG path.
 
     Truth has shape (F,2), estimates (M,F,2), in seconds. All cases are
-    included irrespective of the supplied convergence flags (M,F).
+    included irrespective of optional convergence flags (M,F).
     """
 
     for method_index, key in enumerate(METHOD_KEYS):
@@ -665,8 +657,10 @@ def save_identifiability_figure(
         separation_figure = plot_t60_error_vs_separation(true_t60_s, errors)
         separation_figure.axes[0].set_title(METHOD_LABELS[method_index], fontsize=8)
         # Keep unfinished fits visible instead of silently filtering them.
-        unfinished = ~np.asarray(converged[method_index], dtype=bool)
-        if np.any(unfinished):
+        unfinished = None if converged is None else ~np.asarray(
+            converged[method_index], dtype=bool
+        )
+        if unfinished is not None and np.any(unfinished):
             separation_figure.axes[0].scatter(
                 np.diff(true_t60_s, axis=1)[unfinished, 0],
                 np.max(errors[unfinished], axis=1),
@@ -709,7 +703,11 @@ def _plot_saved_results(
             output_dir,
             np.asarray(archive[f"{prefix}true_t60_s"]),
             np.asarray(archive[f"{prefix}estimated_t60_s"]),
-            np.asarray(archive[f"{prefix}frequency_converged"]),
+            (
+                np.asarray(archive[f"{prefix}frequency_converged"])
+                if f"{prefix}frequency_converged" in archive
+                else None
+            ),
             show=show,
         )
 
@@ -798,29 +796,10 @@ def main() -> None:
         method_labels=np.asarray(METHOD_LABELS),
         method_weight_powers=np.asarray(METHOD_POWERS),
         t60_range_s=np.asarray(T60_RANGE_S),
-        dirichlet_alpha=np.asarray(DIRICHLET_ALPHA),
-        noise_mean_db=np.asarray(NOISE_MEAN_DB),
-        noise_std_db=np.asarray(NOISE_STD_DB),
         true_t60_s=result["true_t60_s"],
         true_amplitudes=result["true_amplitudes"],
-        true_noise_floor=result["true_noise_floor"],
         estimated_t60_s=result["estimated_t60_s"],
         estimated_amplitudes=result["estimated_amplitudes"],
-        estimated_noise_floor=result["estimated_noise_floor"],
-        final_is=result["final_is"],
-        batch_n_iter=result["batch_n_iter"],
-        batch_converged=result["batch_converged"],
-        frequency_n_iter=result["frequency_n_iter"],
-        frequency_converged=result["frequency_converged"],
-        frequency_loss_converged=result["frequency_loss_converged"],
-        frequency_decay_converged=result["frequency_decay_converged"],
-        objective_history=result["objective_history"],
-        rate_history_per_s=result["rate_history_per_s"],
-        rate_method=np.asarray(args.rate_method),
-        max_iter=np.asarray(args.max_iter),
-        tolerance=np.asarray(args.tol),
-        decay_tolerance=np.asarray(args.decay_tol),
-        batch_size=np.asarray(args.batch_size),
     )
     for method_index, key in enumerate(METHOD_KEYS):
         print(

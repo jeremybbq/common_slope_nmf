@@ -39,17 +39,18 @@ python -m experiments.synthetic_decay_robustness
 ```
 
 Draw 100 independent T60 pairs uniformly over 0.5–3.0 s, including nearby rates.
-Each pair has 512 RIR realizations, 374 frames at a 128/24000 s hop, Dirichlet(0.5)
-unit-sum amplitudes, and -40 dB mean floors with 2/3 dB standard deviation.
+Each pair has 512 RIR realizations, 512 frames at a 128/24000 s hop, and unit-sum
+amplitudes formed by a Uniform(0, 1) first component and its complement; floors have
+a -40 dB mean with 2/3 dB standard deviation.
 Compare `rho` and `rho**2` on matched observations with pooled-log initialization.
 Default batching is one pair per fit, so stopping is independent across pairs.
 Larger batches share a summed-loss stopping decision; batch size is saved.
 
 Save signed rate-error scatter, T60/amplitude error histograms, T60 error versus
 pair separation, and amplitude RMSE/bias versus separation. All cases are retained;
-unfinished fits are marked in the T60 separation plot. Numerical output includes
-truth, estimates, total IS and rate histories, iteration counts, and separate
-loss/decay stopping flags. Reaching a stopping tolerance is not a recovery guarantee.
+unfinished fits are marked in the T60 separation plot. The archive retains the true
+and fitted RT pairs and amplitudes needed to reconstruct these analyses. Reaching a
+stopping tolerance is not a recovery guarantee.
 Pooled amplitude errors share estimated rates within a pair and are not independent
 across RIRs. These experiments measure empirical robustness, not universal identifiability.
 
@@ -134,6 +135,11 @@ the initialized tail-average floor from the leading-frame power. Fit a per-RIR,
 per-frequency constant floor and use `rho` as the CW-SAGE surrogate weight. The
 weighted method remains experimental, so a finite-result and objective-growth gate is a
 numerical diagnostic rather than a validation claim.
+
+Each two-slope configuration also writes a final contribution-weight map at the fitted
+bin nearest 2 kHz (override with `--rho-frequency-hz`). Its two position-by-time
+condition panels reconstruct `rho_1`, `rho_2`, and the floor `rho_0` from the saved
+amplitudes, RTs, floors, and retained-frame times.
 
 Run the pilot before the full stage:
 

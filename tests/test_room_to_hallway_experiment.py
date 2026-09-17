@@ -7,11 +7,14 @@ from experiments.roomToHallway_omni import (
     STRONG_MIXTURE_RGB,
     WEAK_MIXTURE_RGB,
     FrequencyFit,
+    FLOOR_RHO_RGB,
     amplitude_mixture_rgb,
     initial_parameters,
     nearest_frequency_indices,
     pilot_is_healthy,
+    plot_final_rho_space_time,
     stratified_receiver_indices,
+    rho_mixture_rgb,
 )
 
 
@@ -57,6 +60,43 @@ def test_dark_amplitude_mixture_reaches_all_four_configured_corners():
     np.testing.assert_allclose(rgb[1], SHORT_SLOPE_RGB)
     np.testing.assert_allclose(rgb[2], LONG_SLOPE_RGB)
     np.testing.assert_allclose(rgb[3], STRONG_MIXTURE_RGB)
+
+
+def test_rho_mixture_uses_fast_slow_and_floor_colors():
+    rgb = rho_mixture_rgb(np.eye(3))
+
+    np.testing.assert_allclose(rgb[0], SHORT_SLOPE_RGB)
+    np.testing.assert_allclose(rgb[1], LONG_SLOPE_RGB)
+    np.testing.assert_allclose(rgb[2], FLOOR_RHO_RGB)
+
+
+def test_final_rho_plot_reconstructs_from_saved_fit(tmp_path):
+    result_path = tmp_path / "fit.npz"
+    metadata_path = tmp_path / "metadata.npz"
+    np.savez(
+        result_path,
+        estimated_t60_s=np.array([[0.6, 1.2]]),
+        estimated_amplitudes=np.full((8, 1, 2), 0.5),
+        estimated_noise_floor=np.full((8, 1), 1e-3),
+        frequencies_hz=np.array([2_000.0]),
+        receiver_indices=np.arange(8),
+    )
+    np.savez(
+        metadata_path,
+        times_s=np.array([0.0, 0.01, 0.02]),
+        condition_names=np.array([
+            "room_los", "room_no_los", "hallway_los", "hallway_no_los"
+        ]),
+        rir_condition_index=np.repeat(np.arange(4), 2),
+        listener_positions_m=np.column_stack((np.linspace(0.0, 5.0, 8), np.zeros(8), np.zeros(8))),
+    )
+
+    path = plot_final_rho_space_time(
+        result_path, metadata_path, tmp_path / "rho_space_time", target_frequency_hz=2_000.0
+    )
+
+    assert path.is_file()
+    assert path.with_suffix(".pdf").is_file()
 
 
 def test_initial_parameters_split_signal_power_equally_with_floor():

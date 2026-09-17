@@ -77,12 +77,14 @@ PILOT_TARGET_FREQUENCIES_HZ = np.array(
 )
 T60_BOUNDS_S = (0.15, 3.0)
 COMPONENT_WEIGHT_POWER = 1.0
+RHO_TARGET_FREQUENCY_HZ = 2_000.0
 N_HEAD_FRAMES = 8
 N_TAIL_FRAMES = 8
 FLOOR_MARGIN_DB = 6.0
 SHORT_SLOPE_RGB = np.array([67.0, 133.0, 190.0]) / 255.0  # #4385BE
-LONG_SLOPE_RGB = np.array([232.0, 112.0, 95.0]) / 255.0  # #E8705F
+LONG_SLOPE_RGB = np.array([255.0, 155.0, 16.0]) / 255.0  # #FF9B10
 WEAK_MIXTURE_RGB = np.zeros(3, dtype=np.float64)  # #000000
+FLOOR_RHO_RGB = np.full(3, 0.4, dtype=np.float64)  # #2E2E2E
 STRONG_MIXTURE_RGB = np.array([230.0, 228.0, 217.0]) / 255.0  # #E6E4D9
 
 
@@ -142,6 +144,12 @@ def _arguments() -> argparse.Namespace:
     parser.add_argument("--tol", type=float, default=1e-6)
     parser.add_argument("--jobs", type=int, default=8)
     parser.add_argument(
+        "--rho-frequency-hz",
+        type=float,
+        default=RHO_TARGET_FREQUENCY_HZ,
+        help="Nearest fitted frequency used for the final rho space-time map.",
+    )
+    parser.add_argument(
         "--highest-bins",
         type=int,
         default=0,
@@ -163,6 +171,8 @@ def _arguments() -> argparse.Namespace:
             parser.error(f"--{name.replace('_', '-')} must contain positive integers")
     if not np.isfinite(args.tol) or args.tol < 0.0:
         parser.error("--tol must be finite and non-negative")
+    if not np.isfinite(args.rho_frequency_hz) or args.rho_frequency_hz <= 0.0:
+        parser.error("--rho-frequency-hz must be finite and positive")
     if args.highest_bins < 0:
         parser.error("--highest-bins must be non-negative")
     return args
@@ -691,10 +701,11 @@ def save_summary(
                 ]
             )
 
-    plot_decay_times(
-        output_dir / f"{prefix}_results.npz",
-        output_dir / f"{prefix}_summary.png",
-    )
+    if fits[0].n_components == 2:
+        plot_decay_times(
+            output_dir / f"{prefix}_results.npz",
+            output_dir / f"{prefix}_summary.png",
+        )
 
 
 def _save_png_and_pdf(fig, output_path: str | Path) -> Path:
@@ -836,6 +847,128 @@ def amplitude_mixture_rgb(
     ) / np.maximum(total_strength[..., np.newaxis], np.finfo(np.float64).tiny)
     opacity = 1.0 - (1.0 - short_strength) * (1.0 - long_strength)
     return 1.0 - opacity[..., np.newaxis] * (1.0 - hue)
+
+
+def rho_mixture_rgb(rho: np.ndarray) -> np.ndarray:
+    """Return RGB colors for final fast, slow, and floor contributions.
+
+    ``rho`` has final axis ``(rho_1, rho_2, rho_0)`` for fast decay, slow
+    decay, and constant floor. It must be finite, non-negative, and sum to
+    one. The output has shape ``rho.shape[:-1] + (3,)``; pure components use
+    ``SHORT_SLOPE_RGB``, ``LONG_SLOPE_RGB``, and ``FLOOR_RHO_RGB``.
+    """
+
+    values = np.asarray(rho, dtype=np.float64)
+    if values.ndim < 1 or values.shape[-1] != 3:
+        raise ValueError("rho must have a final axis of length three.")
+    if not np.all(np.isfinite(values)) or np.any(values < 0.0):
+        raise ValueError("rho must be finite and non-negative.")
+    if not np.allclose(np.sum(values, axis=-1), 1.0, rtol=0.0, atol=1e-10):
+        raise ValueError("rho must sum to one along its final axis.")
+    return (
+        values[..., 0, np.newaxis] * SHORT_SLOPE_RGB
+        + values[..., 1, np.newaxis] * LONG_SLOPE_RGB
+        + values[..., 2, np.newaxis] * FLOOR_RHO_RGB
+    )
+
+
+def plot_final_rho_space_time(
+    result_path: str | Path,
+    metadata_path: str | Path,
+    output_path: str | Path,
+    *,
+    target_frequency_hz: float,
+) -> Path:
+    """Plot final rho over receiver position and elapsed time at one bin.
+
+    The fitted archive supplies final two-slope amplitudes/floors and RTs;
+    metadata supplies frame times and room-to-hallway positions. The selected
+    bin is nearest ``target_frequency_hz``. Room/LOS and Hallway/LOS panels use blue for
+    ``rho_1``, orange for ``rho_2``, and dark gray for ``rho_0``.
+    """
+
+    if not np.isfinite(target_frequency_hz) or target_frequency_hz <= 0.0:
+        raise ValueError("target_frequency_hz must be finite and positive.")
+    plt = _pyplot()
+    with np.load(result_path, allow_pickle=False) as result:
+        t60_s = np.asarray(result["estimated_t60_s"], dtype=np.float64)
+        amplitudes = np.asarray(result["estimated_amplitudes"], dtype=np.float64)
+        floors = np.asarray(result["estimated_noise_floor"], dtype=np.float64)
+        frequencies_hz = np.asarray(result["frequencies_hz"], dtype=np.float64)
+        receiver_indices = np.asarray(result["receiver_indices"], dtype=np.int64)
+    if (
+        t60_s.ndim != 2 or t60_s.shape[1] != 2
+        or amplitudes.shape != (receiver_indices.size, frequencies_hz.size, 2)
+        or floors.shape != amplitudes.shape[:2]
+        or not all(np.all(np.isfinite(x)) for x in (t60_s, amplitudes, floors))
+        or np.any(t60_s <= 0.0) or np.any(amplitudes <= 0.0) or np.any(floors <= 0.0)
+    ):
+        raise ValueError("result must contain finite positive two-slope fit parameters.")
+    with np.load(metadata_path, allow_pickle=False) as metadata:
+        times_s = np.asarray(metadata["times_s"], dtype=np.float64)
+        condition_names = np.asarray(metadata["condition_names"])
+        condition_index = np.asarray(metadata["rir_condition_index"])[receiver_indices]
+        positions_m = np.asarray(metadata["listener_positions_m"])[receiver_indices, 0]
+    if times_s.ndim != 1 or times_s.size < 2 or np.any(np.diff(times_s) <= 0.0):
+        raise ValueError("metadata times_s must be a strictly increasing 1-D array.")
+
+    frequency_index = int(np.argmin(np.abs(frequencies_hz - target_frequency_hz)))
+    atoms = np.exp(
+        -t60_to_rate(t60_s[frequency_index])[:, np.newaxis] * times_s[np.newaxis, :]
+    )
+    components = amplitudes[:, frequency_index, :, np.newaxis] * atoms[np.newaxis]
+    total = np.sum(components, axis=1) + floors[:, frequency_index, np.newaxis]
+    rho = np.concatenate(
+        (
+            components / total[:, np.newaxis, :],
+            (floors[:, frequency_index, np.newaxis] / total)[:, np.newaxis, :],
+        ), axis=1,
+    ).transpose(0, 2, 1)
+    colors = rho_mixture_rgb(rho)
+
+    display_names = {
+        "room_los": "Source in Room, LOS",
+        "hallway_los": "Source in Hallway, LOS",
+    }
+    with plt.rc_context({"font.size": 8, "axes.labelsize": 8, "xtick.labelsize": 8, "ytick.labelsize": 8}):
+        figure = plt.figure(figsize=(3.45, 3.1))
+        grid = figure.add_gridspec(2, 1, left=0.14, right=0.98, bottom=0.19, top=0.95, hspace=0.26)
+        axes = [figure.add_subplot(grid[index, 0]) for index in range(2)]
+        for panel, (name, axis) in enumerate(zip(display_names, axes, strict=True)):
+            condition = list(condition_names).index(name)
+            mask = condition_index == condition
+            order = np.argsort(positions_m[mask])
+            x = positions_m[mask][order]
+            axis.imshow(
+                np.transpose(colors[mask][order], (1, 0, 2)), origin="lower",
+                aspect="auto", interpolation="nearest",
+                extent=(x[0], x[-1], times_s[0], times_s[-1]),
+            )
+            axis.axvline(2.5, color="white", linewidth=1.2, linestyle="--", alpha=0.9)
+            axis.set(title=display_names[name], xlim=(0.0, 5.0), ylim=(times_s[0], times_s[-1]))
+            axis.title.set_fontsize(7)
+            axis.set_xticks([0.0, 2.5, 5.0], labels=["0", "2.5", "5"])
+            if panel == 0:
+                axis.set_ylabel("Elapsed time (s)")
+                axis.tick_params(axis="x", labelbottom=False)
+            else:
+                axis.set_ylabel("Elapsed time (s)")
+        figure.text(0.58, 0.1, r"Room $\leftarrow\qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad\rightarrow$ Hallway", ha="center", fontsize=7)
+        figure.text(0.58, 0.1, "Receiver position (m)", ha="center", fontsize=8)
+        figure.legend(
+            handles=[
+                plt.Line2D([], [], color=SHORT_SLOPE_RGB, linewidth=3, label=r"$\rho_1$ fast decay"),
+                plt.Line2D([], [], color=LONG_SLOPE_RGB, linewidth=3, label=r"$\rho_2$ slow decay"),
+                plt.Line2D([], [], color=FLOOR_RHO_RGB, linewidth=3, label=r"$\rho_0$ floor"),
+            ],
+            loc="lower center", bbox_to_anchor=(0.58, 0), ncols=3, frameon=False, fontsize=7,
+        )
+        output = Path(output_path).with_suffix(".png")
+        output.parent.mkdir(parents=True, exist_ok=True)
+        figure.savefig(output, dpi=300)
+        figure.savefig(output.with_suffix(".pdf"))
+        plt.close(figure)
+    return output
 
 
 def plot_amplitude_mixture(
@@ -1060,6 +1193,13 @@ def main() -> None:
             output_dir / f"{name}_frequency_results",
         )
         save_summary(fits, receiver_indices, max_iter, output_dir, name)
+        if n_components == 2:
+            plot_final_rho_space_time(
+                output_dir / f"{name}_results.npz",
+                output_dir / "analysis_metadata.npz",
+                output_dir / f"{name}_rho_space_time",
+                target_frequency_hz=args.rho_frequency_hz,
+            )
         health.append((name, pilot_is_healthy(fits)))
 
     with (output_dir / "configuration_health.csv").open(

@@ -1,9 +1,9 @@
 import numpy as np
 
 from experiments.synthetic_decay_robustness import (
-    DIRICHLET_ALPHA,
     METHOD_LABELS,
     METHOD_POWERS,
+    N_FRAMES,
     run_identifiability_comparison,
 )
 
@@ -11,7 +11,7 @@ from experiments.synthetic_decay_robustness import (
 def test_identifiability_comparison_uses_only_two_cw_sage_orders():
     assert METHOD_POWERS == (1.0, 2.0)
     assert METHOD_LABELS == (r"CW-SAGE ($p=1$)", r"CW-SAGE ($p=2$)")
-    assert DIRICHLET_ALPHA == 0.5
+    assert N_FRAMES == 512
 
 
 def test_small_identifiability_comparison_preserves_result_dimensions():
@@ -31,5 +31,10 @@ def test_small_identifiability_comparison_preserves_result_dimensions():
     assert result["true_t60_s"].shape == (2, 2)
     assert result["estimated_t60_s"].shape == (2, 2, 2)
     assert result["estimated_amplitudes"].shape == (2, 32, 2, 2)
+    np.testing.assert_allclose(
+        result["true_amplitudes"][..., 1],
+        1.0 - result["true_amplitudes"][..., 0],
+    )
+    assert np.all((result["true_amplitudes"] >= 0.0) & (result["true_amplitudes"] <= 1.0))
     assert result["frequency_n_iter"].shape == (2, 2)
     assert result["objective_history"].shape == (2, 2, 2)
