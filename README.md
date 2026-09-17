@@ -1,4 +1,4 @@
-# multi_slope_NMF
+# common_slope_nmf
 
 Research package for estimating multiple, frequency-dependent room-acoustic decay
 processes from sets of room impulse responses (RIRs). The target method is a
@@ -33,10 +33,11 @@ independent-frequency joint decay-rate estimation.
 ## Repository layout
 
 ```text
-common_slope_nmf/  Importable model, objective, synthesis, and SAGE utilities
-tests/             Deterministic convention, recovery, and statistical tests
-experiments/       Synthetic and real-data experiments with local plots
-docs/              Research specification and project index
+common_slope_nmf/     Importable model, objective, synthesis, array DSP, and SAGE
+experiments/          Fit CLIs (NPZ/CSV), sibling plot scripts, and dataset readers
+tests/package/        Deterministic package tests
+tests/experiments/    Experiment, plot, and dataset-reader tests
+docs/                 Research specification and project index
 ```
 
 Every experiment that writes artifacts creates a unique timestamped directory under
@@ -86,27 +87,30 @@ result = cw_decay_sage(
 )
 ```
 
-Run the three synthetic experiments from the repository root:
+Run the three synthetic experiments from the repository root. Fit CLIs write NPZ/CSV
+only; sibling plot scripts read those archives:
 
 ```bash
-python -m experiments.synthetic_convergence
-python -m experiments.synthetic_decay_robustness
-python -m experiments.synthetic_amplitude_identifiability
+python -m experiments.synthetic.convergence
+python -m experiments.synthetic.decay_robustness
+python -m experiments.synthetic.amplitude_identifiability
+python -m experiments.synthetic.plot_convergence --results output/RUN/loss_convergence_results.npz
 ```
 
 They cover one-pair convergence/loss geometry, pooled-pair decay robustness, and
-known-rate amplitude identifiability. Each supports `--plot-results PATH` to regenerate
-figures from saved numerical results. Full configurations and real-data commands are
-in [docs/EXPERIMENTS.md](docs/EXPERIMENTS.md).
+known-rate amplitude identifiability. The numerical package starts from already-read
+RIR arrays; SOFA/SRIR readers live in `experiments.datasets`. Full configurations and
+real-data commands are in [docs/EXPERIMENTS.md](docs/EXPERIMENTS.md).
 
 The paper's main recorded-RIR application is the coupled-room transition dataset:
 
 ```bash
-python -m experiments.roomToHallway_omni --stage pilot
-python -m experiments.roomToHallway_omni --stage full
+python -m experiments.room_to_hallway.omni --stage pilot
+python -m experiments.room_to_hallway.omni --stage full
+python -m experiments.room_to_hallway.plot_omni --results output/RUN
 ```
 
-`experiments/roomToHallway_georg_benchmarks.py` provides the corresponding external
+`experiments.room_to_hallway.georg_benchmarks` provides the corresponding external
 baselines. Dataset preparation and external model requirements are documented in
 [docs/EXPERIMENTS.md](docs/EXPERIMENTS.md).
 

@@ -1,6 +1,6 @@
 import numpy as np
 
-from experiments.synthetic_convergence import (
+from experiments.synthetic.convergence import (
     DECAY_LOSS_TOL,
     LONG_T60_RANGE_S,
     N_FRAMES,

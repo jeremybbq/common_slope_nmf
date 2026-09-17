@@ -1,6 +1,6 @@
 import numpy as np
 
-from experiments.synthetic_decay_robustness import (
+from experiments.synthetic.decay_robustness import (
     METHOD_LABELS,
     METHOD_POWERS,
     N_FRAMES,

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-`multi_slope_NMF` develops a physically constrained IS-NMF/SAGE method for common,
+`common_slope_nmf` develops a physically constrained IS-NMF/SAGE method for common,
 multi-slope RIR decay estimation. It estimates frequency-dependent rate trajectories
 shared across RIRs, with non-negative per-RIR amplitudes and noise floors.
 
@@ -27,25 +27,26 @@ shared across RIRs, with non-negative per-RIR amplitudes and noise floors.
 | `common_slope_nmf/model.py` | Implemented | Exponential variance model and parameter transforms |
 | `common_slope_nmf/synth.py` | Implemented | Dirichlet decay parameters and complex-Gaussian observations |
 | `common_slope_nmf/preprocess.py` | Implemented | Head/tail power summaries and pooled coarse decay fitting |
-| `common_slope_nmf/rir.py` | Implemented | MATLAB/SOFA RIR loading, pooled global onset, resampling, STFT power, and frame selection |
+| `common_slope_nmf/rir.py` | Implemented | Array-in onset, resampling, STFT power, and frame selection |
 | `common_slope_nmf/georg_baselines.py` | Implemented | External DecayFitNet ONNX adapter and Georg-style common-slope EDC clustering/amplitude fit |
 | `common_slope_nmf/is_objective.py` | Implemented | IS divergence and Gaussian variance criterion |
-| `common_slope_nmf/sage.py` | Implemented | Supplied-atom amplitudes, profiled decay-rate SAGE, and experimental contribution-weighted CW-SAGE |
+| `common_slope_nmf/sage/` | Implemented | Nested package: supplied-atom amplitudes, profiled decay-rate SAGE, and experimental contribution-weighted CW-SAGE |
+| `experiments/datasets/` | Implemented | SOFA/SRIR readers that return RIR arrays; not part of the numerical package |
 | `common_slope_nmf/wideband.py` | Planned | Interval-integrated decay atoms and subdivision |
 | `common_slope_nmf/refine.py` | Planned | Component pruning and ordering |
 | `common_slope_nmf/smooth.py` | Planned | Frequency-trajectory parameterization and penalties |
 
 ## Experiment map
 
-| Script | Question |
-| --- | --- |
-| `experiments/synthetic_convergence.py` | One T60 pair: total IS loss and profiled surface |
-| `experiments/synthetic_decay_robustness.py` | Sampled T60 pairs: decay-estimate robustness |
-| `experiments/synthetic_amplitude_identifiability.py` | Known T60 pair: amplitude masking and uncertainty |
-| `experiments/roomToHallway_omni.py` | Main recorded-RIR application: coupled-room transition |
-| `experiments/roomToHallway_georg_benchmarks.py` | External DecayFitNet/CommonSlopeAnalysis comparison |
+| Fit CLI | Plot CLI | Question |
+| --- | --- | --- |
+| `experiments/synthetic/convergence.py` | `plot_convergence.py` | One T60 pair: total IS loss and profiled surface |
+| `experiments/synthetic/decay_robustness.py` | `plot_decay_robustness.py` | Sampled T60 pairs: decay-estimate robustness |
+| `experiments/synthetic/amplitude_identifiability.py` | `plot_amplitude_identifiability.py` | Known T60 pair: amplitude masking and uncertainty |
+| `experiments/room_to_hallway/omni.py` | `plot_omni.py` | Main recorded-RIR application: coupled-room transition |
+| `experiments/room_to_hallway/georg_benchmarks.py` | `plot_georg_benchmarks.py` | External DecayFitNet/CommonSlopeAnalysis comparison |
 
-Plot functions live in their experiments; `_run_output.py` only creates run directories.
+Fit CLIs write NPZ/CSV only. Sibling `plot_*.py` scripts read those archives. `_run_output.py` only creates run directories. Package tests live in `tests/package/`; experiment tests live in `tests/experiments/`.
 See [Experiments](EXPERIMENTS.md) for configurations, commands, and interpretation.
 SQUAREM and historical scripts are preserved on `feat/squarem`.
 The three-room Treble simulation scripts, tests, and findings are preserved on

@@ -2,14 +2,14 @@ from pathlib import Path
 
 import numpy as np
 
-from experiments.roomToHallway_georg_benchmarks import (
+from experiments.room_to_hallway.georg_benchmarks import (
     BAND_CENTERS_HZ,
     N_SLOPES,
     PARTIAL_KEYS,
     combine_band_partials,
     decayfitnet_mse_db2,
-    plot_t60_comparison,
 )
+from experiments.room_to_hallway.plot_georg_benchmarks import plot_t60_comparison
 
 
 def test_benchmark_uses_agreed_fixed_k2_six_bands():

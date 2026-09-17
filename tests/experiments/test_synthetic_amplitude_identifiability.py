@@ -1,6 +1,6 @@
 import numpy as np
 
-from experiments.synthetic_amplitude_identifiability import (
+from experiments.synthetic.amplitude_identifiability import (
     FAST_TO_SLOW_DB,
     NOISE_FLOOR_DB,
     TRUE_T60_S,
@@ -69,7 +69,7 @@ def test_small_run_uses_matched_complex_gaussian_innovations():
 
 def test_ordinary_sage_history_and_archive_round_trip(tmp_path):
     from common_slope_nmf import amplitude_sage
-    from experiments.synthetic_amplitude_identifiability import load_run, save_run
+    from experiments.synthetic.amplitude_identifiability import load_run, save_run
 
     run = run_amplitude_inference(
         seed=13, n_realizations=7, n_frames=40,

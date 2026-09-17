@@ -1,7 +1,7 @@
 import numpy as np
 
 from common_slope_nmf import rate_to_t60, t60_to_rate
-from experiments.roomToHallway_omni import (
+from experiments.room_to_hallway.omni import (
     LONG_SLOPE_RGB,
     SHORT_SLOPE_RGB,
     STRONG_MIXTURE_RGB,
@@ -12,10 +12,10 @@ from experiments.roomToHallway_omni import (
     initial_parameters,
     nearest_frequency_indices,
     pilot_is_healthy,
-    plot_final_rho_space_time,
     stratified_receiver_indices,
     rho_mixture_rgb,
 )
+from experiments.room_to_hallway.plot_omni import plot_final_rho_space_time
 
 
 def test_amplitude_mixture_is_white_when_weak_and_uses_both_hues():

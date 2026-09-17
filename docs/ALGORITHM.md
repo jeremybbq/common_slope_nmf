@@ -17,7 +17,7 @@ Each updated component is immediately folded into `V`, giving a componentwise SA
 A row of ones in `D` estimates the time-invariant variance floor. Atoms remain fixed and
 unit-normalized at the decay origin, so no unconstrained NMF scale normalization is needed.
 
-`common_slope_nmf/sage.py` exposes this stage as `amplitude_sage` and records the summed
+`common_slope_nmf.sage` exposes this stage as `amplitude_sage` and records the summed
 IS divergence after each sweep. Tests cover exact recovery, monotonicity, nearby rates,
 short windows, weak components, weak floors, and agreement with an independent SciPy
 optimizer. Weak near-boundary components can require many SAGE sweeps; iteration count and

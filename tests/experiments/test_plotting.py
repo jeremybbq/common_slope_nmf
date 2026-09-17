@@ -4,8 +4,8 @@ import pytest
 
 matplotlib.use("Agg")
 
-from experiments import synthetic_convergence as convergence
-from experiments import synthetic_decay_robustness as robustness
+from experiments.synthetic import plot_convergence as convergence
+from experiments.synthetic import plot_decay_robustness as robustness
 
 
 def test_detection_plot_builders_return_figures(tmp_path):

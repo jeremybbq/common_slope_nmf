@@ -1,20 +1,23 @@
 # Experiment plots
 
-Plotting functions live with their owning scripts in `experiments/`, outside the
-numerical package. There is no central plotting module. Functions accept arrays
-or the owning experiment's saved run and return figures or saved paths.
+Plotting lives in sibling `plot_*.py` modules next to each fit CLI, outside the
+numerical package. There is no central plotting module. Fit scripts write NPZ/CSV
+only. Plot scripts read those archives, write PDF/PNG beside the saved results, and
+accept `--show` to display figures.
 
-- `synthetic_convergence.py`: total IS loss, excess loss, profiled loss surface
-  with T60 trajectories. Surface interpolation is display-only.
-- `synthetic_decay_robustness.py`: rate-error scatter, error histograms, and
-  decay/amplitude errors versus true pair separation.
-- `synthetic_amplitude_identifiability.py`: amplitude-error distributions with
-  unfinished cases marked. `load_run` reconstructs a saved ordinary-SAGE run.
-- Real-data scripts retain their existing local plotting functions.
+- `experiments/synthetic/plot_convergence.py`: total IS loss, excess loss, profiled
+  loss surface with T60 trajectories. Surface interpolation is display-only.
+- `experiments/synthetic/plot_decay_robustness.py`: rate-error scatter, error
+  histograms, and decay/amplitude errors versus true pair separation.
+- `experiments/synthetic/plot_amplitude_identifiability.py`: amplitude-error
+  distributions with unfinished cases marked. The fit module's `load_run`
+  reconstructs a saved ordinary-SAGE run.
+- `experiments/room_to_hallway/plot_omni.py`: two-slope T60 curves, contribution-weight
+  space-time maps, and amplitude-mixture images from a run directory.
+- `experiments/room_to_hallway/plot_georg_benchmarks.py`: DecayFitNet/CommonSlopeAnalysis
+  overlay on a proposed two-slope T60 result.
 
-Each synthetic CLI accepts `--plot-results PATH` to plot an existing NPZ without
-calling an estimator, and `--show` to display figures. PDF and PNG outputs go to
-a new timestamped run directory. See [Experiments](EXPERIMENTS.md) for commands.
+See [Experiments](EXPERIMENTS.md) for commands.
 
 Decay times are energy T60 in seconds; rates are inverse seconds. Amplitude ratios
 use `10 log10`, since amplitudes represent variance/power. Preserve component ordering

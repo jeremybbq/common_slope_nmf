@@ -1,15 +1,15 @@
 # Experiments
 
 All runnable scripts live in `experiments/`. Synthetic experiments are organized
-around three questions. Each script owns its plotting functions, writes numerical
-results to a unique timestamped `output/` directory, and accepts `--plot-results`
-to regenerate figures without fitting. All decay times below are energy `T60` in
+around three questions. Each fit CLI writes numerical results to a unique
+timestamped `output/` directory. Sibling `plot_*.py` scripts regenerate figures from
+those archives without fitting. All decay times below are energy `T60` in
 seconds; amplitudes and floors are variance/power quantities.
 
 ## 1. Convergence for one decay pair
 
 ```bash
-python -m experiments.synthetic_convergence
+python -m experiments.synthetic.convergence
 ```
 
 Fix the true pair at `[0.80, 1.40]` s, generate 256 RIR realizations with 256
@@ -35,7 +35,7 @@ The weighted methods do not guarantee monotone observed IS loss.
 ## 2. Decay-estimate robustness across sampled pairs
 
 ```bash
-python -m experiments.synthetic_decay_robustness
+python -m experiments.synthetic.decay_robustness
 ```
 
 Draw 100 independent T60 pairs uniformly over 0.5–3.0 s, including nearby rates.
@@ -57,7 +57,7 @@ across RIRs. These experiments measure empirical robustness, not universal ident
 ## 3. Amplitude identifiability for known decay times
 
 ```bash
-python -m experiments.synthetic_amplitude_identifiability
+python -m experiments.synthetic.amplitude_identifiability
 ```
 
 Hold `[0.50, 1.50]` s fixed. Estimate only the two variance amplitudes and a
@@ -80,12 +80,17 @@ statistical uncertainty before making identifiability claims.
 
 ## Replot saved results
 
-Use the matching experiment module and its saved NPZ, for example:
+Use the matching sibling plot module and its saved NPZ or run directory:
 
 ```bash
-python -m experiments.synthetic_convergence --plot-results output/RUN/loss_convergence_results.npz
-python -m experiments.synthetic_decay_robustness --plot-results output/RUN/t60_identifiability_results.npz
-python -m experiments.synthetic_amplitude_identifiability --plot-results output/RUN/amplitude_inference_results.npz
+python -m experiments.synthetic.plot_convergence --results output/RUN/loss_convergence_results.npz
+python -m experiments.synthetic.plot_decay_robustness --results output/RUN/t60_identifiability_results.npz
+python -m experiments.synthetic.plot_amplitude_identifiability --results output/RUN/amplitude_inference_results.npz
+python -m experiments.room_to_hallway.plot_omni --results output/RUN
+python -m experiments.room_to_hallway.plot_georg_benchmarks \
+  --proposed output/RUN/K2_equal_log_linear_results.npz \
+  --benchmark output/BENCH/room_to_hallway_georg_benchmarks.npz \
+  --output output/BENCH/t60_comparison.png
 ```
 
 Historical numerical filenames are retained. The amplitude loader expects the new
@@ -96,7 +101,8 @@ ordinary-SAGE format; archived accelerated runs belong to `feat/squarem`.
 Deterministic package tests retain energy/power conventions, Gaussian synthesis,
 exact recovery, statistical fixed-rate checks, independent optimizer comparisons,
 nearby rates, short windows, weak components, and noise floors. These checks live
-in `tests/`; they no longer have separate publication experiment scripts.
+These checks live in `tests/package/`. Experiment-script checks live in
+`tests/experiments/`. They no longer have separate publication experiment scripts.
 
 ## Archived research
 
@@ -115,7 +121,7 @@ These simulation scripts are excluded from the paper workflow on `main`.
 
 The coupled-room transition recordings are the paper's main real-RIR application.
 
-`experiments/roomToHallway_omni.py` operates on the four raw v1.3 Meeting Room to
+`experiments/room_to_hallway/omni.py` operates on the four raw v1.3 Meeting Room to
 Hallway SOFA files. It pools the four source/visibility conditions only for the common
 decay rates; amplitudes and constant noise floors remain specific to every RIR and
 frequency. Channel zero is the ACN omnidirectional response.
@@ -144,13 +150,14 @@ amplitudes, RTs, floors, and retained-frame times.
 Run the pilot before the full stage:
 
 ```text
-python -m experiments.roomToHallway_omni --stage pilot
-python -m experiments.roomToHallway_omni --stage full
+python -m experiments.room_to_hallway.omni --stage pilot
+python -m experiments.room_to_hallway.omni --stage full
+python -m experiments.room_to_hallway.plot_omni --results output/RUN
 ```
 
 ## Georg Götz baselines on the room transition
 
-`experiments/roomToHallway_georg_benchmarks.py` runs two fixed-order baselines
+`experiments/room_to_hallway/georg_benchmarks.py` runs two fixed-order baselines
 on channel-zero RIRs from all four raw v1.3 Meeting Room to Hallway conditions.
 The agreed comparison uses two slopes and band centers at 250, 500, 1000,
 2000, 4000, and 8000 Hz. It deliberately follows the baseline's full-RIR
@@ -165,7 +172,7 @@ decay times, then refits every EDC using non-negative dB-domain least squares.
 Run the benchmark with an external DecayFitNet checkout:
 
 ```bash
-python -m experiments.roomToHallway_georg_benchmarks \
+python -m experiments.room_to_hallway.georg_benchmarks \
   --model-dir ~/Documents/DecayFitNet/model
 ```
 

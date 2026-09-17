@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from common_slope_nmf import cw_decay_sage, decay_sage
-from experiments.synthetic_decay_robustness import (
+from experiments.synthetic.decay_robustness import (
     frequency_batches,
     order_decay_components,
 )
