@@ -100,9 +100,6 @@ python -m experiments.synthetic.demo_synth_init_fit
 python -m experiments.synthetic.plot_demo_synth_init_fit --results output/RUN/synth_init_fit_results.npz
 ```
 
-Older `python -m examples.*` and `python -m experiments.roomToHallway_omni` commands still
-import as thin shims that print the new module path.
-
 ## Status
 
 The energy-decay convention, complex-Gaussian generator, IS objective, supplied-atom
