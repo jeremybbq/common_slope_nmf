@@ -10,14 +10,13 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 from .is_objective import is_divergence
-from .sage import (
-    _amplitude_sage_sweep,
+from .sage.amplitudes import _amplitude_sage_sweep, _initial_amplitudes
+from .sage.decay import decay_sage
+from .sage._util import (
     _broadcast_rate_bound,
     _check_controls,
-    _initial_amplitudes,
     _positive_array,
     _real_array,
-    decay_sage,
 )
 
 
