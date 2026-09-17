@@ -1,6 +1,6 @@
 import numpy as np
 
-from examples.fit_coupled_rooms import (
+from experiments.coupled_rooms.fit import (
     FrequencyFit,
     _stack_fits,
     initial_decay_rates,

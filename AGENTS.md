@@ -11,6 +11,6 @@ Write deterministic pytest tests with known synthetic ground truth before extend
 estimator. Numerical assertions should use stated tolerances and include difficult cases:
 nearby rates, short decay windows, weak components, and noise floors.
 
-Place reusable theory and assumptions in `docs/`, executable demonstrations in `examples/`,
+Place reusable theory and assumptions in `docs/`, runnable questions in `experiments/`,
 and implementation-specific tests in `tests/`. Update `docs/INDEX.md` when a planned module
 becomes real.

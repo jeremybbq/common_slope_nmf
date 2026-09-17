@@ -1,9 +1,14 @@
 # Experimental protocol
 
+Fit CLIs write NPZ archives and CSV summaries. Sibling `plot_*.py` scripts load those
+files and write PNG/PDF figures. Dataset-format readers live under `experiments.datasets`;
+callers pass RIR arrays into the numerical package.
+
 ## Raw room-to-hallway transition experiment
 
-`experiments/roomToHallway_omni.py` operates on the four raw v1.3 Meeting Room to
-Hallway SOFA files. It pools the four source/visibility conditions only for the common
+`experiments/room_to_hallway/omni.py` operates on the four raw v1.3 Meeting Room to
+Hallway SOFA files. Dataset-format readers live under `experiments.datasets`; the
+numerical package starts from already-read RIR arrays. It pools the four source/visibility conditions only for the common
 decay rates; amplitudes and constant noise floors remain specific to every RIR and
 frequency. Channel zero is the ACN omnidirectional response.
 
@@ -26,8 +31,9 @@ numerical diagnostic rather than a validation claim.
 Run the pilot before the full stage:
 
 ```text
-python -m experiments.roomToHallway_omni --stage pilot
-python -m experiments.roomToHallway_omni --stage full
+python -m experiments.room_to_hallway.omni --stage pilot
+python -m experiments.room_to_hallway.omni --stage full
+python -m experiments.room_to_hallway.plot_omni --results output/RUN
 ```
 
 ## Implemented foundational validation
@@ -47,11 +53,17 @@ independent complex coefficients per variance with a fixed seed. Verify that
 the real and imaginary parts each have variance `V / 2`, while normalized
 instantaneous power `Y / V` has the mean, variance, median, and 95th percentile
 of a unit-mean exponential distribution. The deterministic test tolerances are
-predeclared in `tests/test_synth.py`.
+predeclared in `tests/package/test_synth.py`.
 
-Run `examples/validate_decay_and_generator.py` to produce the corresponding
-decay, distribution, and calibration plots. These experiments validate the
-forward conventions and generator; they make no estimator-recovery claim.
+Run the NPZ fit CLI, then the sibling plot script:
+
+```text
+python -m experiments.synthetic.validate_decay_and_generator
+python -m experiments.synthetic.plot_validate_decay_and_generator --results output/RUN/generator_validation_results.npz
+```
+
+These experiments validate the forward conventions and generator; they make no
+estimator-recovery claim.
 
 ### 3. Fixed-rate amplitude and floor recovery
 
@@ -90,11 +102,12 @@ only expected for deterministic `Y = V`.
 Run:
 
 ```text
-python -m examples.validate_fixed_rate_amplitudes
+python -m experiments.synthetic.validate_fixed_rate_amplitudes
+python -m experiments.synthetic.plot_validate_fixed_rate_amplitudes --results output/RUN/experiment_03_fixed_rate_sage.npz
 ```
 
-The focused assertions are in `tests/test_is_objective.py` and
-`tests/test_fixed_rate_sage.py`. Numerical findings and future solver ablations are
+The focused assertions are in `tests/package/test_is_objective.py` and
+`tests/package/test_fixed_rate_sage.py`. Numerical findings and future solver ablations are
 maintained in [Design findings](DESIGN_FINDINGS.md).
 
 ### 4. Known-decay STFT-shaped inference
@@ -149,16 +162,17 @@ be reported as a calibration diagnostic, not an exact finite-sample identity.
 Run:
 
 ```text
-python -m examples.validate_known_decay_stft
+python -m experiments.synthetic.validate_known_decay_stft
+python -m experiments.synthetic.plot_validate_known_decay_stft --results output/RUN/known_decay_stft_results.npz
 ```
 
-The script saves every plot as a separately named PNG under a timestamped
-`./output/YYYY-MM-DD_HH-MM-SS-ffffff/` run directory: one generated power/estimated-
+The fit CLI writes a compressed NPZ archive under a timestamped
+`./output/YYYY-MM-DD_HH-MM-SS-ffffff/` run directory. The sibling plot script saves every plot as a separately named PNG: one generated power/estimated-
 variance comparison for each floor condition, one convergence plot, one three-condition
 estimator-distribution plot, linear and dB binwise decay-amplitude plots, and a dB
 noise-floor plot. Only the no-floor distribution receives an exact Gamma-law overlay.
 The focused regressions for all three conditions are in
-`tests/test_known_decay_stft.py`.
+`tests/package/test_known_decay_stft.py`.
 
 ### 5. Independent-frequency profiled decay recovery
 
@@ -178,10 +192,10 @@ boundaries as fast recovery.
 Run:
 
 ```text
-python -m examples.validate_decay_sage
+python -m experiments.synthetic.validate_decay_sage
 ```
 
-Focused assertions are in `tests/test_decay_sage.py`. Stochastic joint-rate recovery,
+Focused assertions are in `tests/package/test_decay_sage.py`. Stochastic joint-rate recovery,
 initialization basins, nearby-rate separation, and model selection remain future
 experiments.
 
@@ -270,11 +284,12 @@ condition, not a data-derived initialization rule.
 Run:
 
 ```text
-python -m examples.validate_multislope_sage
+python -m experiments.synthetic.validate_multislope_sage
+python -m experiments.synthetic.plot_validate_multislope_sage --results output/RUN/multislope_rho_m0p80_init_2p00_2p00_diagnostics.npz
 ```
 
-The current script defaults to correlation `-0.8`, equal `2 s` initialization, and 2,000
-sweeps. It saves separate spatial observed-power and fitted-variance maps over `(t,r)`, an
+The current fit CLI defaults to correlation `-0.8`, equal `2 s` initialization, and 2,000
+sweeps. The sibling plot script saves separate spatial observed-power and fitted-variance maps over `(t,r)`, an
 observed/true/estimated variance comparison, marginal generating-versus-estimated
 amplitude distributions, a joint-amplitude comparison, per-RIR parameters, and
 raw-objective and `T60` trajectories. It also saves animated `(r,n)` maps of
@@ -285,9 +300,9 @@ The numerical objective and rate histories are retained in a compressed NumPy ar
 new diagnostic views do not require rerunning the estimator. The current multislope run
 also requests complete-sweep scaled-error, all-component Wiener weights, and sequential
 profile-moment diagnostics at sweep 1 and every 100 sweeps thereafter; these fields are
-written into the same archive. All example outputs are grouped under a timestamped
+written into the same archive. All experiment outputs are grouped under a timestamped
 `./output/YYYY-MM-DD_HH-MM-SS-ffffff/` run directory so separate runs cannot mix. The
-deterministic forward-model checks are in `tests/test_multislope_experiment.py`.
+deterministic forward-model checks are in `tests/experiments/test_multislope_experiment.py`.
 
 ### 7. Component-strength-weighted pseudo-SAGE comparison
 
@@ -301,12 +316,13 @@ unweighted. The default comparison is `p = 1`; use `--component-weight-power 2` 
 Run:
 
 ```text
-python -m examples.validate_weighted_multislope_sage
-python -m examples.validate_weighted_multislope_sage --component-weight-power 2
+python -m experiments.synthetic.validate_weighted_multislope_sage
+python -m experiments.synthetic.validate_weighted_multislope_sage --component-weight-power 2
+python -m experiments.synthetic.plot_validate_multislope_sage --results output/RUN/....npz
 ```
 
-The script writes the same plot family and animations as experiment 6 to a new
-timestamped directory. Its compressed diagnostics additionally save the selected power,
+The weighted fit CLI writes the same NPZ family as experiment 6 to a new
+timestamped directory; plot it with `experiments.synthetic.plot_validate_multislope_sage`. Its compressed diagnostics additionally save the selected power,
 the weighted moment `M`, and its denominator `sum_n w`. The total observed IS objective
 and `T60` trajectories remain the primary checks. Since this weighting is not an exact
 SAGE auxiliary function, objective monotonicity, convergence speed, and recovery quality
@@ -338,18 +354,19 @@ command-line controls.
 Run:
 
 ```text
-python -m examples.sweep_multislope_decay_initialization
+python -m experiments.synthetic.sweep_multislope_decay_initialization
+python -m experiments.synthetic.plot_sweep_multislope_decay_initialization --results output/RUN/....npz
 ```
 
-The timestamped output contains separate basin-arrow, final-error, convergence-sweep,
-objective-excess, and convergence-status plots, plus CSV summaries and padded NumPy
-objective/decay trajectories for every initialization. This is an empirical initialization
+The timestamped output contains CSV summaries and padded NumPy
+objective/decay trajectories for every initialization. The sibling plot script writes basin-arrow, final-error, convergence-sweep,
+objective-excess, and convergence-status figures. This is an empirical initialization
 landscape, not a proof of convexity. Statistical robustness across newly sampled datasets
 is a separate experiment.
 
 ### 9. Package synthesis-to-fit workflow
 
-`examples/demo_synth_init_fit.py` exercises the reusable package path without changing
+`experiments/synthetic/demo_synth_init_fit.py` exercises the reusable package path without changing
 the fixed historical datasets above. It samples separated decay times, unit-sum
 Dirichlet amplitudes, Gaussian power-dB floors, and exact complex-Gaussian observations;
 constructs a pooled-log SAGE starting point; and fits with `rho**2` pseudo-SAGE.
@@ -357,12 +374,13 @@ constructs a pooled-log SAGE starting point; and fits with `rho**2` pseudo-SAGE.
 Run:
 
 ```text
-python -m examples.demo_synth_init_fit
+python -m experiments.synthetic.demo_synth_init_fit
+python -m experiments.synthetic.plot_demo_synth_init_fit --results output/RUN/synth_init_fit_results.npz
 ```
 
-The example saves its simplex-share histogram, observed/exact/fitted variance map,
-decay trajectories, objective, and numerical initialization diagnostics in one
-timestamped directory. It demonstrates API composition; recovery claims still belong to
+The fit CLI saves numerical initialization diagnostics in one timestamped directory.
+The sibling plot script writes the simplex-share histogram, observed/exact/fitted variance map,
+decay trajectories, and objective figures from that NPZ. It demonstrates API composition; recovery claims still belong to
 predeclared controlled experiments and tests.
 
 ### 10. Independent-frequency decay-detection sweep
@@ -385,7 +403,8 @@ minimum true slope separation: error versus realized separation is a primary dia
 Run:
 
 ```text
-python -m examples.sweep_decay_detection
+python -m experiments.synthetic.sweep_decay_detection
+python -m experiments.synthetic.plot_sweep_decay_detection --results output/RUN/decay_detection_results.npz
 ```
 
 The default outer stopping tolerance is `1e-6`, matching the decay-estimator API default.
@@ -393,7 +412,7 @@ This is a pragmatic choice rather than a validated universal convergence certifi
 script processes bins in configurable batches to bound memory use and records batch
 membership because the relative stopping rule is applied to the batch-summed observed
 objective. Use `--batch-size 1` to make the gate strictly per-frequency. It saves a CSV
-row per frequency, a compressed numerical archive, true-versus-estimated and pair-plane
+row per frequency and a compressed numerical archive. The sibling plot script writes true-versus-estimated and pair-plane
 plots, error versus true separation, an empirical maximum-error CDF, error-evolution
 maps, batch objective curves, and one observed/exact/fitted variance map. The experiment
 must be run before any recovery threshold is described as validated.
@@ -428,7 +447,8 @@ pilot converged in 32--105 sweeps with fitted triplets `[0.550, 1.709, 4.053]`,
 `[0.643, 1.690, 3.765] s`, respectively. The full run is:
 
 ```text
-python -m examples.fit_coupled_rooms --stage full --reuse-cache --jobs 8
+python -m experiments.coupled_rooms.fit --stage full --reuse-cache --jobs 8
+python -m experiments.coupled_rooms.plot_fit --results output/RUN/full_results.npz
 ```
 
 The full 838-receiver fit converged in 126 of 128 bins. The 6062.5 and 6187.5 Hz bins
@@ -458,7 +478,7 @@ log-power decay fit per frequency repeated across all three components. Keep the
 amplitude split and every other setting unchanged:
 
 ```text
-python -m examples.fit_coupled_rooms --stage full --reuse-cache \
+python -m experiments.coupled_rooms.fit --stage full --reuse-cache \
     --highest-bins 5 --initialization equal-log-linear --jobs 5
 ```
 
@@ -482,10 +502,11 @@ Refine both weighted solutions with ordinary SAGE (`w = 1`, equivalently pseudo-
 `p = 0`), using the saved fitted rates and amplitudes together as warm starts:
 
 ```text
-python -m examples.refine_coupled_rooms_unweighted \
+python -m experiments.coupled_rooms.refine \
     output/2026-08-24_17-53-05-079735/full_results.npz \
     output/2026-08-25_09-13-41-528023/full_results.npz \
     --highest-bins 5 --jobs 5
+python -m experiments.coupled_rooms.plot_refine --results output/RUN/unweighted_warm_start_results.npz
 ```
 
 All ten refinements converged. Ordinary SAGE reduced each warm-start objective by only
@@ -528,7 +549,8 @@ number as if it were one SAGE sweep would understate its work.
 Run from scratch with:
 
 ```text
-python -m examples.compare_multislope_convergence
+python -m experiments.squarem.compare_convergence
+python -m experiments.squarem.plot_compare_convergence --results output/RUN/multislope_convergence_histories.npz
 ```
 
 The script can instead accept repeated `--reference-diagnostics` arguments to reuse the
@@ -556,8 +578,8 @@ fixed stochastic dataset and one initialization, so it supports an implementatio
 comparison only. Runtime conclusions require fresh timed runs of every method, and
 recovery conclusions require multiple datasets, slope separations, and initializations.
 
-The timestamped output contains the raw-loss and best-retained-loss-gap curves, a CSV
-summary, and un-interpolated numerical histories. SQUAREM's objective archive includes
+The timestamped output contains a CSV
+summary and un-interpolated numerical histories. The sibling plot script writes the raw-loss and best-retained-loss-gap curves. SQUAREM's objective archive includes
 the cumulative base-sweep evaluation index for every retained state.
 
 ### 13. SQUAREM continuation from weighted pseudo-SAGE
@@ -571,7 +593,8 @@ evaluation budget with objective tolerance `1e-10` and fixed-point tolerance `1e
 Run:
 
 ```text
-python -m examples.warm_start_squarem_from_pseudo_sage
+python -m experiments.squarem.warm_start
+python -m experiments.squarem.plot_warm_start --results output/RUN/pseudo_sage_to_squarem_results.npz
 ```
 
 The deterministic rerun exactly reproduced the saved pseudo-SAGE endpoint. The measured
@@ -595,7 +618,7 @@ from `0.00684` to `0.01669 s`. This again shows that a lower in-sample stochasti
 need not minimize realized parameter error.
 
 The timestamped output saves both complete final parameter states, objective and rate
-histories, SQUAREM fixed-point residuals, a CSV summary, and a two-stage convergence plot.
+histories, SQUAREM fixed-point residuals, and a CSV summary. The sibling plot script writes the two-stage convergence figure.
 This single continuation demonstrates that the weighted pseudo-SAGE endpoint is not an
 ordinary-SAGE fixed point; it does not establish a generally superior optimizer sequence.
 
@@ -625,6 +648,6 @@ overall method, while experiment 3 isolates the optimizer with exactly known fix
 
 Every experiment should record a seed, STFT configuration, decay origin, units, parameter
 bounds, initial intervals, stopping rules, and software environment.
-Every executable example that writes artifacts creates one timestamped directory under
+Every fit CLI that writes artifacts creates one timestamped directory under
 `output/YYYY-MM-DD_HH-MM-SS-ffffff/`; all files from that invocation remain within that
 directory.

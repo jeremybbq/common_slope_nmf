@@ -1,4 +1,4 @@
-# multi_slope_NMF
+# common_slope_nmf
 
 Research scaffold for estimating multiple, frequency-dependent room-acoustic decay
 processes from sets of room impulse responses (RIRs). The target method is a
@@ -33,15 +33,19 @@ independent-frequency joint decay-rate estimation.
 ## Repository layout
 
 ```text
-common_slope_nmf/  Importable model, objective, synthesis, and SAGE utilities
-tests/             Deterministic convention, recovery, and statistical tests
-examples/          Reproducible validation analyses and figures
+common_slope_nmf/  Importable model, objective, synthesis, SAGE, and array DSP
+experiments/       Runnable questions: NPZ fit CLIs and sibling plot scripts
+tests/             Package and experiment tests
 docs/              Research specification and project index
 ```
 
-Every example that writes artifacts creates a unique timestamped directory under
-`output/YYYY-MM-DD_HH-MM-SS-ffffff/`, keeping figures and numerical diagnostics from one
-run together.
+The numerical package starts from already-read RIR arrays or synthetic observations.
+SOFA and MATLAB SRIR readers live in `experiments.datasets`. Every fit CLI that writes
+artifacts creates a unique timestamped directory under
+`output/YYYY-MM-DD_HH-MM-SS-ffffff/` and stores NPZ (and CSV) results there. Plot
+scripts load those archives and write PNG/PDF figures.
+
+Install optional dataset and plotting dependencies with `pip install -e '.[experiments]'`.
 
 ## Package workflow
 
@@ -86,8 +90,18 @@ result = pseudo_decay_sage(
 )
 ```
 
-Run `python -m examples.demo_synth_init_fit` for the corresponding executable
-demonstration and timestamped diagnostic outputs.
+Callers can also pass RIR arrays through `global_energy_onset`, `resample_rirs`,
+`rir_stft_power`, and `select_stft_frames` after reading files outside the package.
+
+Run the matching demonstration with:
+
+```text
+python -m experiments.synthetic.demo_synth_init_fit
+python -m experiments.synthetic.plot_demo_synth_init_fit --results output/RUN/synth_init_fit_results.npz
+```
+
+Older `python -m examples.*` and `python -m experiments.roomToHallway_omni` commands still
+import as thin shims that print the new module path.
 
 ## Status
 

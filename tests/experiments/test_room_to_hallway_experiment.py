@@ -1,7 +1,7 @@
 import numpy as np
 
 from common_slope_nmf import rate_to_t60, t60_to_rate
-from experiments.roomToHallway_omni import (
+from experiments.room_to_hallway.omni import (
     LONG_SLOPE_RGB,
     SHORT_SLOPE_RGB,
     STRONG_MIXTURE_RGB,

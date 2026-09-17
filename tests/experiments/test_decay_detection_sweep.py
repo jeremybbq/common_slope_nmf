@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from common_slope_nmf import decay_sage, pseudo_decay_sage
-from examples.sweep_decay_detection import (
+from experiments.synthetic.sweep_decay_detection import (
     frequency_batches,
     order_decay_components,
 )

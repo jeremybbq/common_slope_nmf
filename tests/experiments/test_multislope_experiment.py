@@ -1,7 +1,7 @@
 import numpy as np
 
 from common_slope_nmf import exponential_variance, t60_to_rate
-from examples.validate_multislope_sage import (
+from experiments.synthetic.validate_multislope_sage import (
     N_RIRS,
     generate_multislope_data,
 )

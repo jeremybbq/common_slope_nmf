@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from examples._run_output import create_run_output_dir
+from experiments._run_output import create_run_output_dir
 
 
 def test_create_run_output_dir_uses_timestamp_subdirectory(tmp_path):

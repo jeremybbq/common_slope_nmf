@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from examples.sweep_multislope_decay_initialization import (
+from experiments.synthetic.sweep_multislope_decay_initialization import (
     equal_amplitude_initialization,
     initial_t60_pairs,
 )

@@ -1,74 +1,30 @@
-"""Run the seeded two-slope experiment with weighted pseudo-SAGE."""
+"""Compatibility shim. Prefer ``experiments.synthetic.validate_weighted_multislope_sage``."""
 
 from __future__ import annotations
 
-import argparse
-from pathlib import Path
+import sys
+import warnings
 
-import numpy as np
+from experiments.synthetic.validate_weighted_multislope_sage import *  # noqa: F403
+from experiments.synthetic.validate_weighted_multislope_sage import main
 
-from examples.validate_multislope_sage import run_experiment
+_NEW_COMMAND = "python -m experiments.synthetic.validate_weighted_multislope_sage"
+_PLOT_COMMAND = "experiments.synthetic.plot_validate_multislope_sage"
 
-
-def _arguments() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument(
-        "--component-weight-power",
-        type=float,
-        default=1.0,
-        help=(
-            "Non-negative exponent p for fixed decay M-step weights rho_k**p "
-            "(default: 1)."
-        ),
-    )
-    parser.add_argument(
-        "--max-iter",
-        type=int,
-        default=2_000,
-        help="Maximum number of complete pseudo-SAGE component sweeps.",
-    )
-    parser.add_argument(
-        "--tol",
-        type=float,
-        default=1e-10,
-        help="Relative outer observed-objective decrease tolerance.",
-    )
-    parser.add_argument(
-        "--rate-method",
-        choices=("newton", "bisection"),
-        default="newton",
-        help="Weighted profile-rate solver (default: newton).",
-    )
-    parser.add_argument(
-        "--output-root",
-        type=Path,
-        default=Path("output"),
-        help="Root directory for the timestamped run directory.",
-    )
-    parser.add_argument(
-        "--show", action="store_true", help="Display figures after saving."
-    )
-    args = parser.parse_args()
-    if (
-        not np.isfinite(args.component_weight_power)
-        or args.component_weight_power < 0.0
-    ):
-        parser.error("--component-weight-power must be finite and non-negative")
-    if args.max_iter <= 0:
-        parser.error("--max-iter must be positive")
-    if not np.isfinite(args.tol) or args.tol < 0.0:
-        parser.error("--tol must be finite and non-negative")
-    return args
-
-
-def main() -> None:
-    """Generate, fit, plot, and summarize the weighted experiment."""
-
-    args = _arguments()
-    run_experiment(
-        args, component_weight_power=args.component_weight_power
+def _announce() -> None:
+    warnings.warn(
+        f"{__name__} is a compatibility shim; run `{_NEW_COMMAND}` instead.",
+        DeprecationWarning,
+        stacklevel=2,
     )
 
 
 if __name__ == "__main__":
+    _announce()
+    message = f"redirecting to {_NEW_COMMAND}"
+    if _PLOT_COMMAND is not None:
+        message += (
+            f"\nplot saved NPZ with: python -m {_PLOT_COMMAND} --results PATH"
+        )
+    print(message, file=sys.stderr)
     main()
