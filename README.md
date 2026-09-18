@@ -52,13 +52,13 @@ import numpy as np
 from common_slope_nmf import (
     init_decay_sage,
     cw_decay_sage,
-    sample_multislope_data,
+    sample_stft_power,
     t60_to_rate,
 )
 
-times_s = np.arange(374) * 128 / 24_000
-data = sample_multislope_data(
-    times_s,
+frame_time_s = np.arange(374) * 128 / 24_000
+data = sample_stft_power(
+    frame_time_s,
     n_rirs=512,
     n_frequencies=1,
     n_components=2,
@@ -72,13 +72,13 @@ data = sample_multislope_data(
 rate_bounds = (t60_to_rate(3.0), t60_to_rate(0.5))
 init = init_decay_sage(
     data.observed_power,
-    data.times_s,
+    data.frame_time_s,
     n_components=2,
     rate_bounds_per_s=rate_bounds,
 )
 result = cw_decay_sage(
     data.observed_power,
-    data.times_s,
+    data.frame_time_s,
     init.rates_per_s,
     rate_bounds_per_s=rate_bounds,
     initial_amplitudes=init.amplitudes,

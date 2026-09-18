@@ -8,7 +8,7 @@ from numbers import Integral
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
-from ..preprocess import DecayFit, fit_coarse_decay, head_power, tail_power
+from ..preprocess import fit_linear_decay, head_power, tail_power
 from ._util import _broadcast_rate_bound, _positive_array, _real_array
 
 @dataclass(frozen=True)
@@ -24,14 +24,14 @@ class DecaySAGEInit:
         Equal-split initial variance amplitudes, shape ``(R,F,K)``.
     noise_floor
         Tail-average variance-floor initialization, shape ``(R,F)``.
-    fit
-        Unclipped pooled log-power decay fit and its frame diagnostics.
+    linear_rate_per_s
+        Unclipped pooled log-power decay rates, shape ``(F,)``, in inverse seconds.
     """
 
     rates_per_s: NDArray[np.float64]
     amplitudes: NDArray[np.float64]
     noise_floor: NDArray[np.float64]
-    fit: DecayFit
+    linear_rate_per_s: NDArray[np.float64]
 
 def init_decay_sage(
     observed_power: ArrayLike,
@@ -57,17 +57,14 @@ def init_decay_sage(
         Number of decay components ``K``.
     rate_bounds_per_s
         Positive lower and upper energy-decay rates in inverse seconds, each
-        broadcastable to ``(F,K)``. The single coarse rate is clipped to the
+        broadcastable to ``(F,K)``. The single linear-fit rate is clipped to the
         intersection of all component bounds at each frequency.
     n_head_frames
         Number of leading frames averaged for the total initial amplitude.
     n_tail_frames
-        Number of trailing frames averaged for the initial noise floor and
-        excluded from the pooled log-power regression.
+        Number of trailing frames averaged for the initial noise floor and excluded from the pooled log-power regression.
     floor_margin_db
-        Optional non-negative power margin above the mean initialized floor
-        used to select common regression frames. ``None`` uses every non-tail
-        frame.
+        Optional non-negative power margin above the mean initialized floor used to select common regression frames. ``None`` uses every non-tail frame.
     min_regression_frames
         Minimum common regression frames required at each frequency.
     min_amplitude
@@ -76,14 +73,11 @@ def init_decay_sage(
     Returns
     -------
     DecaySAGEInit
-        Initial rates ``(F,K)``, amplitudes ``(R,F,K)``, floor ``(R,F)``, and
-        the pooled coarse-fit diagnostics.
+        Initial rates ``(F,K)``, amplitudes ``(R,F,K)``, floor ``(R,F)``, and the unclipped pooled linear-fit rates ``(F,)``.
 
     Notes
     -----
-    The leading-frame mean is split equally across components without
-    subtracting the initialized floor. Every component at a frequency starts
-    from the same clipped coarse decay rate.
+    The leading-frame mean is split equally across components without subtracting the initialized floor. Every component at a frequency starts from the same clipped linear-fit decay rate.
     """
 
     power = _positive_array("observed_power", observed_power, ndim=3)
@@ -116,7 +110,7 @@ def init_decay_sage(
         )
 
     noise_floor = np.maximum(tail_power(power, n_tail_frames), min_amplitude)
-    fit = fit_coarse_decay(
+    rate_per_s = fit_linear_decay(
         power,
         times,
         noise_floor=noise_floor,
@@ -124,8 +118,8 @@ def init_decay_sage(
         floor_margin_db=floor_margin_db,
         min_frames=min_regression_frames,
     )
-    coarse_rate = np.clip(fit.rate_per_s, common_lower, common_upper)
-    rates_per_s = np.repeat(coarse_rate[:, np.newaxis], int(n_components), axis=1)
+    linear_rate = np.clip(rate_per_s, common_lower, common_upper)
+    rates_per_s = np.repeat(linear_rate[:, np.newaxis], int(n_components), axis=1)
     total_amplitude = head_power(power, n_head_frames)
     amplitudes = np.repeat(
         (total_amplitude / n_components)[:, :, np.newaxis],
@@ -139,5 +133,5 @@ def init_decay_sage(
         rates_per_s=rates_per_s,
         amplitudes=amplitudes,
         noise_floor=noise_floor,
-        fit=fit,
+        linear_rate_per_s=rate_per_s,
     )

@@ -107,7 +107,7 @@ def test_initial_parameters_split_signal_power_equally_with_floor():
     power = amplitudes * np.exp(-rates[np.newaxis, :, np.newaxis] * times_s)
     power += floors
 
-    initial_rates, initial_amplitudes, initial_floor, coarse_t60, r_squared = (
+    initial_rates, initial_amplitudes, initial_floor, coarse_t60 = (
         initial_parameters(power, times_s, 3, "equal-log-linear")
     )
 
@@ -118,7 +118,6 @@ def test_initial_parameters_split_signal_power_equally_with_floor():
     np.testing.assert_allclose(initial_amplitudes[:, :, 1], initial_amplitudes[:, :, 2])
     np.testing.assert_allclose(rate_to_t60(initial_rates), np.full((1, 3), coarse_t60))
     assert np.all(initial_floor > 0.0)
-    assert np.isfinite(r_squared)
 
 
 def test_log_spaced_initialization_is_ordered_and_bounded():
@@ -126,7 +125,7 @@ def test_log_spaced_initialization_is_ordered_and_bounded():
     power = np.exp(-t60_to_rate(0.8) * times_s)[np.newaxis, np.newaxis, :]
     power += 1e-6
 
-    rates, _, _, _, _ = initial_parameters(power, times_s, 3, "log-spaced")
+    rates, _, _, _ = initial_parameters(power, times_s, 3, "log-spaced")
     t60_s = rate_to_t60(rates[0])
 
     assert np.all(np.diff(t60_s) > 0.0)
@@ -157,7 +156,6 @@ def test_pilot_health_checks_weighted_objective_growth():
             n_components=2,
             initialization="equal-log-linear",
             coarse_t60_s=0.8,
-            coarse_r_squared=0.9,
             initial_t60_s=np.array([0.8, 0.8]),
             estimated_t60_s=np.array([0.6, 1.0]),
             estimated_amplitudes=np.ones((4, 2)),

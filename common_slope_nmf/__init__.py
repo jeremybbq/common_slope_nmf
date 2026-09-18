@@ -16,11 +16,10 @@ from .model import (
     rate_to_t60,
     t60_to_rate,
 )
-from .preprocess import DecayFit, fit_coarse_decay, head_power, tail_power
+from .preprocess import fit_linear_decay, head_power, tail_power
 from .rir import (
     STFTPower,
     global_energy_onset,
-    resample_rirs,
     rir_stft_power,
     select_stft_frames,
 )
@@ -37,9 +36,9 @@ from .sage import (
     update_rates_newton,
 )
 from .synth import (
-    DecayData,
+    SynthData,
     sample_complex_gaussian,
-    sample_multislope_data,
+    sample_stft_power,
     sample_power,
     sample_simplex_amplitudes,
     sample_t60,
@@ -48,9 +47,8 @@ from .synth import (
 __all__ = [
     "AmplitudeSAGEResult",
     "CommonSlopeEDCFit",
-    "DecayData",
+    "SynthData",
     "DecayFitNetEstimate",
-    "DecayFit",
     "DecaySAGEInit",
     "DecaySAGEResult",
     "DecaySAGEUpdateDiagnostics",
@@ -63,7 +61,7 @@ __all__ = [
     "edc_to_equivalent_rir_power_amplitudes",
     "exponential_features",
     "exponential_variance",
-    "fit_coarse_decay",
+    "fit_linear_decay",
     "fit_common_slope_edcs",
     "global_energy_onset",
     "head_power",
@@ -71,11 +69,10 @@ __all__ = [
     "is_divergence",
     "cw_decay_sage",
     "rate_to_t60",
-    "resample_rirs",
     "rir_stft_power",
     "select_stft_frames",
     "sample_complex_gaussian",
-    "sample_multislope_data",
+    "sample_stft_power",
     "sample_power",
     "sample_simplex_amplitudes",
     "sample_t60",

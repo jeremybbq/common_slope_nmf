@@ -12,20 +12,19 @@ from .model import exponential_variance, t60_to_rate
 
 
 @dataclass(frozen=True)
-class DecayData:
-    """Synthetic data from the exact multislope variance model.
+class SynthData:
+    """Synthetic data from the common-slope additive complex-Gaussian variance model.
 
     Attributes
     ----------
-    times_s
-        Non-negative elapsed frame times in seconds, shape ``(N,)``.
+    frame_time_s
+        Time vector of STFT frame elapsed time in seconds, shape ``(N,)``. Frame time zero is the decay origin.
     t60_s
         Shared energy-decay times in seconds, shape ``(F,K)``.
     rates_per_s
         Shared energy-decay rates in inverse seconds, shape ``(F,K)``.
     amplitudes
-        Unit-origin variance amplitudes, shape ``(R,F,K)``. Their component
-        sum equals the requested total amplitude for every ``(R,F)``.
+        Unit-origin variance amplitudes, shape ``(R,F,K)``. Their component sum equals the requested total amplitude for every ``(R,F)``.
     noise_floor
         Time-invariant variance floors, shape ``(R,F)``.
     variance
@@ -34,11 +33,9 @@ class DecayData:
         Circular complex-Gaussian coefficients, shape ``(R,F,N)``.
     observed_power
         Instantaneous powers ``abs(coefficients)**2``, shape ``(R,F,N)``.
-    dominant_component
-        Index of the largest unit-origin amplitude, shape ``(R,F)``.
     """
 
-    times_s: NDArray[np.float64]
+    frame_time_s: NDArray[np.float64]
     t60_s: NDArray[np.float64]
     rates_per_s: NDArray[np.float64]
     amplitudes: NDArray[np.float64]
@@ -46,7 +43,6 @@ class DecayData:
     variance: NDArray[np.float64]
     coefficients: NDArray[np.complex128]
     observed_power: NDArray[np.float64]
-    dominant_component: NDArray[np.int64]
 
 
 def _positive_variance(variance: ArrayLike) -> NDArray[np.float64]:
@@ -64,47 +60,27 @@ def _positive_variance(variance: ArrayLike) -> NDArray[np.float64]:
     return values
 
 
-def _output_shape(
-    variance_shape: tuple[int, ...], n_realizations: int | None
-) -> tuple[int, ...]:
-    if n_realizations is None:
-        return variance_shape
-    if isinstance(n_realizations, bool) or not isinstance(n_realizations, Integral):
-        raise TypeError("n_realizations must be an integer or None.")
-    if n_realizations <= 0:
-        raise ValueError("n_realizations must be positive.")
-    return (int(n_realizations),) + variance_shape
-
-
 def sample_complex_gaussian(
     variance: ArrayLike,
     *,
     rng: np.random.Generator | None = None,
-    n_realizations: int | None = None,
 ) -> NDArray[np.complex128]:
     """Draw zero-mean circular complex-Gaussian coefficients.
 
     Parameters
     ----------
     variance
-        Strictly positive coefficient variances, with arbitrary shape. Units
-        are energy/power, and ``E[abs(X)**2] = variance``.
+        Strictly positive coefficient variances, with arbitrary shape. Units are energy/power, and ``E[abs(X)**2] = variance``.
     rng
-        NumPy random generator. A fresh default generator is created when
-        omitted; pass a seeded generator for reproducible experiments.
-    n_realizations
-        Optional number of independent draws for every variance entry.
+        NumPy random generator. A fresh default generator is created when omitted; pass a seeded generator for reproducible experiments.
 
     Returns
     -------
     ndarray
-        Complex coefficients. The shape equals ``variance.shape`` when
-        ``n_realizations`` is omitted and
-        ``(n_realizations,) + variance.shape`` otherwise.
+        Complex coefficients with the same shape as ``variance``.
     """
 
     values = _positive_variance(variance)
-    shape = _output_shape(values.shape, n_realizations)
 
     if rng is None:
         rng = np.random.default_rng()
@@ -112,8 +88,8 @@ def sample_complex_gaussian(
         raise TypeError("rng must be a numpy.random.Generator or None.")
 
     scale = np.sqrt(values / 2.0)
-    real = rng.standard_normal(shape)
-    imaginary = rng.standard_normal(shape)
+    real = rng.standard_normal(values.shape)
+    imaginary = rng.standard_normal(values.shape)
     return scale * (real + 1j * imaginary)
 
 
@@ -121,7 +97,6 @@ def sample_power(
     variance: ArrayLike,
     *,
     rng: np.random.Generator | None = None,
-    n_realizations: int | None = None,
 ) -> NDArray[np.float64]:
     """Draw instantaneous powers from the complex-Gaussian variance model.
 
@@ -131,21 +106,14 @@ def sample_power(
         Strictly positive target variances with arbitrary shape.
     rng
         NumPy random generator. Pass a seeded generator for reproducibility.
-    n_realizations
-        Optional number of independent draws for every variance entry.
 
     Returns
     -------
     ndarray
-        Instantaneous powers ``abs(X)**2`` with the same output shape as
-        :func:`sample_complex_gaussian`. Elementwise, ``power / variance``
-        follows a unit-mean exponential distribution.
+        Instantaneous powers ``abs(X)**2`` with the same shape as ``variance``. Elementwise, ``power / variance`` follows a unit-mean exponential distribution.
     """
 
-    coefficients = sample_complex_gaussian(
-        variance, rng=rng, n_realizations=n_realizations
-    )
-    return np.abs(coefficients) ** 2
+    return np.abs(sample_complex_gaussian(variance, rng=rng)) ** 2
 
 
 def _positive_int(name: str, value: int) -> int:
@@ -247,7 +215,7 @@ def sample_simplex_amplitudes(
     n_components: int,
     *,
     concentration: float,
-    total_amplitude: ArrayLike = 1.0,
+    total_amplitude: float = 1.0,
     rng: np.random.Generator | None = None,
 ) -> NDArray[np.float64]:
     """Draw corner-concentrated amplitudes on a fixed-sum simplex.
@@ -261,20 +229,16 @@ def sample_simplex_amplitudes(
     n_components
         Number of decay components ``K``.
     concentration
-        Positive symmetric Dirichlet concentration. Values below one favor
-        the ``K`` simplex corners, one is uniform, and values above one favor
-        equal component shares.
+        Positive symmetric Dirichlet concentration. Values below one favor the ``K`` simplex corners, one is uniform, and values above one favor equal component shares.
     total_amplitude
-        Positive total unit-origin variance, broadcastable to ``(R,F)``.
-        The default is one, or 0 dB in power units.
+        Positive scalar total unit-origin variance, shared by every ``(R,F)``. The default is one, or 0 dB in power units.
     rng
         NumPy random generator. Pass a seeded generator for reproducibility.
 
     Returns
     -------
     ndarray
-        Positive variance amplitudes, shape ``(R,F,K)``, whose last axis sums
-        to ``total_amplitude``.
+        Positive variance amplitudes, shape ``(R,F,K)``, whose last axis sums to ``total_amplitude``.
     """
 
     n_rirs = _positive_int("n_rirs", n_rirs)
@@ -282,42 +246,39 @@ def sample_simplex_amplitudes(
     n_components = _positive_int("n_components", n_components)
     if not np.isfinite(concentration) or concentration <= 0.0:
         raise ValueError("concentration must be finite and positive.")
-    totals = _positive_variance(total_amplitude)
-    try:
-        totals = np.broadcast_to(totals, (n_rirs, n_frequencies))
-    except ValueError as exc:
-        raise ValueError(
-            "total_amplitude must broadcast to shape (R,F)."
-        ) from exc
+    if np.ndim(total_amplitude) != 0:
+        raise ValueError("total_amplitude must be a scalar.")
+    if not np.isfinite(total_amplitude) or float(total_amplitude) <= 0.0:
+        raise ValueError("total_amplitude must be finite and positive.")
 
     generator = _generator(rng)
     shares = generator.dirichlet(
         np.full(n_components, concentration, dtype=np.float64),
         size=(n_rirs, n_frequencies),
     )
-    return shares * totals[:, :, np.newaxis]
+    return shares * float(total_amplitude)
 
 
-def sample_multislope_data(
-    times_s: ArrayLike,
+def sample_stft_power(
+    frame_time_s: ArrayLike,
     n_rirs: int,
     n_frequencies: int,
     n_components: int,
     *,
     t60_range_s: tuple[float, float],
     amplitude_concentration: float,
-    total_amplitude: ArrayLike = 1.0,
+    total_amplitude: float = 1.0,
     noise_mean_db: float,
     noise_std_db: float,
     min_t60_separation_s: float = 0.0,
     rng: np.random.Generator | None = None,
-) -> DecayData:
+) -> SynthData:
     """Generate one exact-model multislope complex-Gaussian dataset.
 
     Parameters
     ----------
-    times_s
-        Non-negative elapsed frame times in seconds, shape ``(N,)``.
+    frame_time_s
+        Time vector of STFT frame elapsed time in seconds, shape ``(N,)``. Frame zero is the decay origin.
     n_rirs, n_frequencies, n_components
         Model dimensions ``R``, ``F``, and ``K``.
     t60_range_s
@@ -325,10 +286,9 @@ def sample_multislope_data(
     amplitude_concentration
         Symmetric Dirichlet concentration for fixed-sum amplitudes.
     total_amplitude
-        Positive total unit-origin variance, broadcastable to ``(R,F)``.
+        Positive scalar total unit-origin variance, shared by every ``(R,F)``.
     noise_mean_db, noise_std_db
-        Mean and non-negative standard deviation of Gaussian floor levels in
-        power dB. Linear floors use ``10**(level_db / 10)``.
+        Mean and non-negative standard deviation of Gaussian floor levels in power dB. Linear floors use ``10**(level_db / 10)``.
     min_t60_separation_s
         Optional minimum adjacent ``T60`` separation in seconds.
     rng
@@ -336,18 +296,17 @@ def sample_multislope_data(
 
     Returns
     -------
-    DecayData
-        Sampled parameters, exact variances, coefficients, powers, and
-        dominant-component labels with explicit array shapes and units.
+    SynthData
+        Sampled parameters, exact variances, coefficients, and powers with explicit array shapes and units.
     """
 
-    times = np.asarray(times_s, dtype=np.float64)
-    if times.ndim != 1 or times.size < 2:
-        raise ValueError("times_s must be one-dimensional with at least 2 values.")
-    if not np.all(np.isfinite(times)) or np.any(times < 0.0):
-        raise ValueError("times_s must contain finite non-negative values.")
-    if np.ptp(times) <= 0.0:
-        raise ValueError("times_s must contain variation.")
+    frame_time_s = np.asarray(frame_time_s, dtype=np.float64)
+    if frame_time_s.ndim != 1 or frame_time_s.size < 2:
+        raise ValueError("frame_time_s must be one-dimensional with at least 2 values.")
+    if not np.all(np.isfinite(frame_time_s)) or np.any(frame_time_s < 0.0):
+        raise ValueError("frame_time_s must contain finite non-negative values.")
+    if np.ptp(frame_time_s) <= 0.0:
+        raise ValueError("frame_time_s must contain variation.")
     if not np.isfinite(noise_mean_db):
         raise ValueError("noise_mean_db must be finite.")
     if not np.isfinite(noise_std_db) or noise_std_db < 0.0:
@@ -378,16 +337,15 @@ def sample_multislope_data(
     )
     noise_floor = 10.0 ** (noise_level_db / 10.0)
     variance = exponential_variance(
-        times,
+        frame_time_s,
         rates_per_s,
         amplitudes,
         noise_floor=noise_floor,
     )
     coefficients = sample_complex_gaussian(variance, rng=generator)
     observed_power = np.abs(coefficients) ** 2
-    dominant_component = np.argmax(amplitudes, axis=2).astype(np.int64)
-    return DecayData(
-        times_s=times.copy(),
+    return SynthData(
+        frame_time_s=frame_time_s.copy(),
         t60_s=t60_s,
         rates_per_s=rates_per_s,
         amplitudes=amplitudes,
@@ -395,5 +353,4 @@ def sample_multislope_data(
         variance=variance,
         coefficients=coefficients,
         observed_power=observed_power,
-        dominant_component=dominant_component,
     )

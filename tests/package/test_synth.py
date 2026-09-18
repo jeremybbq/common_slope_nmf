@@ -4,7 +4,7 @@ import pytest
 from common_slope_nmf import exponential_variance
 from common_slope_nmf.synth import (
     sample_complex_gaussian,
-    sample_multislope_data,
+    sample_stft_power,
     sample_power,
     sample_simplex_amplitudes,
     sample_t60,
@@ -14,9 +14,8 @@ from common_slope_nmf.synth import (
 def test_complex_gaussian_power_has_calibrated_exponential_statistics():
     variances = np.array([1.0, 1e-1, 1e-3, 1e-6])
     coefficients = sample_complex_gaussian(
-        variances,
+        np.broadcast_to(variances, (50_000, variances.size)),
         rng=np.random.default_rng(20260724),
-        n_realizations=50_000,
     )
 
     normalized_power = np.abs(coefficients) ** 2 / variances
@@ -43,9 +42,8 @@ def test_complex_gaussian_power_has_calibrated_exponential_statistics():
 def test_real_and_imaginary_parts_each_have_half_the_total_variance():
     variances = np.array([1.0, 1e-2, 1e-6])
     coefficients = sample_complex_gaussian(
-        variances,
+        np.broadcast_to(variances, (50_000, variances.size)),
         rng=np.random.default_rng(101),
-        n_realizations=50_000,
     )
     component_scale = np.sqrt(variances / 2.0)
 
@@ -69,14 +67,10 @@ def test_real_and_imaginary_parts_each_have_half_the_total_variance():
 def test_seeded_sampling_is_reproducible_and_power_preserves_shape():
     variance = np.array([[1.0, 0.5], [0.1, 0.01]])
 
-    first = sample_power(
-        variance, rng=np.random.default_rng(42), n_realizations=3
-    )
-    second = sample_power(
-        variance, rng=np.random.default_rng(42), n_realizations=3
-    )
+    first = sample_power(variance, rng=np.random.default_rng(42))
+    second = sample_power(variance, rng=np.random.default_rng(42))
 
-    assert first.shape == (3, 2, 2)
+    assert first.shape == variance.shape
     np.testing.assert_array_equal(first, second)
     assert np.all(first >= 0.0)
 
@@ -87,15 +81,7 @@ def test_sampling_rejects_invalid_variance(variance):
         sample_complex_gaussian(variance)
 
 
-@pytest.mark.parametrize("n_realizations", [0, -1])
-def test_sampling_rejects_nonpositive_realization_count(n_realizations):
-    with pytest.raises(ValueError):
-        sample_complex_gaussian(1.0, n_realizations=n_realizations)
-
-
-def test_sampling_rejects_noninteger_realization_count_and_legacy_rng():
-    with pytest.raises(TypeError):
-        sample_complex_gaussian(1.0, n_realizations=1.5)
+def test_sampling_rejects_legacy_rng():
     with pytest.raises(TypeError, match="Generator"):
         sample_complex_gaussian(1.0, rng=np.random.RandomState(0))
 
@@ -129,10 +115,10 @@ def test_sample_t60_enforces_sorted_minimum_separation():
     assert np.all(np.diff(t60_s, axis=1) >= 0.35)
 
 
-def test_multislope_data_matches_exact_model_and_is_reproducible():
-    times_s = np.arange(51, dtype=np.float64) * 0.01
+def test_sampled_stft_power_matches_exact_model_and_is_reproducible():
+    frame_time_s = np.arange(51, dtype=np.float64) * 0.01
     arguments = dict(
-        times_s=times_s,
+        frame_time_s=frame_time_s,
         n_rirs=30,
         n_frequencies=2,
         n_components=3,
@@ -143,20 +129,19 @@ def test_multislope_data_matches_exact_model_and_is_reproducible():
         min_t60_separation_s=0.2,
     )
 
-    first = sample_multislope_data(
+    first = sample_stft_power(
         **arguments, rng=np.random.default_rng(82)
     )
-    second = sample_multislope_data(
+    second = sample_stft_power(
         **arguments, rng=np.random.default_rng(82)
     )
 
     assert first.t60_s.shape == (2, 3)
     assert first.amplitudes.shape == (30, 2, 3)
-    assert first.variance.shape == (30, 2, times_s.size)
-    assert first.dominant_component.shape == (30, 2)
+    assert first.variance.shape == (30, 2, frame_time_s.size)
     np.testing.assert_allclose(np.sum(first.amplitudes, axis=2), 1.0)
     expected_variance = exponential_variance(
-        times_s,
+        frame_time_s,
         first.rates_per_s,
         first.amplitudes,
         noise_floor=first.noise_floor,

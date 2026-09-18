@@ -122,7 +122,6 @@ class FrequencyFit:
     n_components: int
     initialization: str
     coarse_t60_s: float
-    coarse_r_squared: float
     initial_t60_s: np.ndarray
     estimated_t60_s: np.ndarray
     estimated_amplitudes: np.ndarray
@@ -189,7 +188,7 @@ def prepare_power_cache(
             minimum_frequency_hz=MINIMUM_FREQUENCY_HZ,
             maximum_frequency_hz=MAXIMUM_FREQUENCY_HZ,
         )
-        original_frame_count = transformed.times_s.size
+        original_frame_count = transformed.frame_time_s.size
         transformed = select_stft_frames(
             transformed,
             discard_initial_frames=DISCARD_INITIAL_FRAMES,
@@ -197,7 +196,7 @@ def prepare_power_cache(
         )
         if cache is None:
             frequencies_hz = transformed.frequencies_hz.copy()
-            times_s = transformed.times_s.copy()
+            times_s = transformed.frame_time_s.copy()
             cache = np.lib.format.open_memmap(
                 temporary_cache,
                 mode="w+",
@@ -206,7 +205,7 @@ def prepare_power_cache(
             )
         elif not np.array_equal(
             frequencies_hz, transformed.frequencies_hz
-        ) or not np.array_equal(times_s, transformed.times_s):
+        ) or not np.array_equal(times_s, transformed.frame_time_s):
             raise ValueError("SOFA files produced inconsistent STFT axes.")
         next_offset = offset + info.n_measurements
         cache[offset:next_offset] = transformed.observed_power
@@ -319,9 +318,9 @@ def initial_parameters(
 
     Returns
     -------
-    rates_per_s, amplitudes, noise_floor, coarse_t60_s, coarse_r_squared
+    rates_per_s, amplitudes, noise_floor, coarse_t60_s
         Rates ``(1,K)`` in inverse seconds, equal amplitudes ``(R,1,K)`` and
-        floor ``(R,1)`` in variance units, and pooled-fit diagnostics.
+        floor ``(R,1)`` in variance units, and the pooled linear-fit T60.
     """
 
     initialized = init_decay_sage(
@@ -336,7 +335,7 @@ def initial_parameters(
         n_tail_frames=N_TAIL_FRAMES,
         floor_margin_db=FLOOR_MARGIN_DB,
     )
-    coarse_t60 = np.asarray(rate_to_t60(initialized.fit.rate_per_s))
+    coarse_t60 = np.asarray(rate_to_t60(initialized.linear_rate_per_s))
     if initialization == "equal-log-linear":
         initial_t60 = np.repeat(coarse_t60[:, np.newaxis], n_components, axis=1)
     elif initialization == "log-spaced":
@@ -362,7 +361,6 @@ def initial_parameters(
         amplitudes,
         floor,
         float(coarse_t60[0]),
-        float(initialized.fit.r_squared[0]),
     )
 
 
@@ -421,7 +419,7 @@ def _fit_one_frequency(
         times_s = np.asarray(metadata["times_s"], dtype=np.float64)
         frequency_hz = float(metadata["frequencies_hz"][frequency_index])
 
-    rates, amplitudes, floor, coarse_t60, coarse_r_squared = initial_parameters(
+    rates, amplitudes, floor, coarse_t60 = initial_parameters(
         observed_power, times_s, n_components, initialization
     )
     initial_t60 = np.asarray(rate_to_t60(rates[0]))
@@ -455,7 +453,6 @@ def _fit_one_frequency(
         n_components=np.asarray(n_components),
         initialization=np.asarray(initialization),
         coarse_t60_s=np.asarray(coarse_t60),
-        coarse_r_squared=np.asarray(coarse_r_squared),
         initial_t60_s=initial_t60,
         estimated_t60_s=fitted_t60,
         estimated_amplitudes=fitted_amplitudes,
@@ -476,7 +473,6 @@ def _read_fit(path: str | Path) -> FrequencyFit:
             n_components=int(result["n_components"]),
             initialization=str(result["initialization"]),
             coarse_t60_s=float(result["coarse_t60_s"]),
-            coarse_r_squared=float(result["coarse_r_squared"]),
             initial_t60_s=result["initial_t60_s"].copy(),
             estimated_t60_s=result["estimated_t60_s"].copy(),
             estimated_amplitudes=result["estimated_amplitudes"].copy(),
@@ -560,7 +556,6 @@ def save_summary(
 
     frequencies = np.asarray([fit.frequency_hz for fit in fits])
     coarse_t60 = np.asarray([fit.coarse_t60_s for fit in fits])
-    coarse_r_squared = np.asarray([fit.coarse_r_squared for fit in fits])
     initial_t60 = np.stack([fit.initial_t60_s for fit in fits])
     estimated_t60 = np.stack([fit.estimated_t60_s for fit in fits])
     amplitudes = np.stack([fit.estimated_amplitudes for fit in fits], axis=1)
@@ -580,7 +575,6 @@ def save_summary(
         frequencies_hz=frequencies,
         receiver_indices=receiver_indices,
         coarse_t60_s=coarse_t60,
-        coarse_r_squared=coarse_r_squared,
         initial_t60_s=initial_t60,
         estimated_t60_s=estimated_t60,
         estimated_amplitudes=amplitudes,
@@ -604,7 +598,6 @@ def save_summary(
             [
                 "frequency_hz",
                 "coarse_t60_s",
-                "coarse_r_squared",
                 *[f"estimated_t60_{k + 1}_s" for k in range(fits[0].n_components)],
                 "sweeps",
                 "converged",
@@ -618,7 +611,6 @@ def save_summary(
                 [
                     fit.frequency_hz,
                     fit.coarse_t60_s,
-                    fit.coarse_r_squared,
                     *fit.estimated_t60_s,
                     fit.n_iter,
                     fit.converged,

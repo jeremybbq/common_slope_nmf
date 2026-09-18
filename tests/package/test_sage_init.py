@@ -37,10 +37,10 @@ def test_decay_sage_init_uses_pooled_rate_equal_amplitudes_and_tail_floor():
     np.testing.assert_allclose(init.amplitudes[:, :, 0], init.amplitudes[:, :, 1])
     np.testing.assert_allclose(init.amplitudes[:, :, 1], init.amplitudes[:, :, 2])
     np.testing.assert_allclose(init.noise_floor, expected_tail_power)
-    np.testing.assert_allclose(init.fit.rate_per_s, true_rates_per_s, rtol=2e-15)
+    np.testing.assert_allclose(init.linear_rate_per_s, true_rates_per_s, rtol=2e-15)
 
 
-def test_decay_sage_init_clips_coarse_rate_to_common_component_bounds():
+def test_decay_sage_init_clips_linear_rate_to_common_component_bounds():
     times_s = np.arange(101, dtype=np.float64) * 0.01
     true_rates_per_s = np.array([0.4, 14.0])
     power = np.exp(
@@ -60,4 +60,4 @@ def test_decay_sage_init_clips_coarse_rate_to_common_component_bounds():
 
     np.testing.assert_array_equal(init.rates_per_s[0], 2.0)
     np.testing.assert_array_equal(init.rates_per_s[1], 9.0)
-    np.testing.assert_allclose(init.fit.rate_per_s, true_rates_per_s, rtol=3e-15)
+    np.testing.assert_allclose(init.linear_rate_per_s, true_rates_per_s, rtol=3e-15)

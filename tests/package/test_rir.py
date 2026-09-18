@@ -3,37 +3,22 @@ import pytest
 
 from common_slope_nmf import (
     global_energy_onset,
-    resample_rirs,
     rir_stft_power,
     select_stft_frames,
 )
 
 
-def test_global_energy_onset_uses_one_pooled_threshold():
-    rirs = np.zeros((3, 300))
-    rirs[0, 100] = 1.0
-    rirs[1, 120] = 0.5
-    rirs[2, 140] = 0.25
-
-    onset, pooled = global_energy_onset(
-        rirs,
-        1000.0,
-        threshold_db=-20.0,
-        smoothing_duration_s=0.001,
-    )
-
-    assert onset == 100
-    assert pooled.shape == (300,)
-    assert pooled[100] == np.max(pooled)
+def test_global_energy_onset_is_a_placeholder():
+    with pytest.raises(NotImplementedError, match="placeholder"):
+        global_energy_onset(np.zeros((2, 8)), 1_000.0)
 
 
-def test_resample_and_stft_power_preserve_explicit_units_and_shapes():
+def test_stft_power_preserves_explicit_units_and_shapes():
     rng = np.random.default_rng(5)
-    source = rng.normal(size=(4, 2048))
+    rirs = rng.normal(size=(4, 1024))
 
-    resampled = resample_rirs(source, 48_000.0, 24_000.0)
     transformed = rir_stft_power(
-        resampled,
+        rirs,
         24_000.0,
         frame_size_samples=256,
         hop_size_samples=128,
@@ -42,10 +27,9 @@ def test_resample_and_stft_power_preserve_explicit_units_and_shapes():
         maximum_frequency_hz=8_000.0,
     )
 
-    assert resampled.shape == (4, 1024)
     assert transformed.observed_power.shape == (4, 128, 7)
     np.testing.assert_array_equal(transformed.frequencies_hz, np.arange(1, 129) * 62.5)
-    np.testing.assert_allclose(np.diff(transformed.times_s), 128.0 / 24_000.0)
+    np.testing.assert_allclose(np.diff(transformed.frame_time_s), 128.0 / 24_000.0)
     assert np.all(transformed.observed_power > 0.0)
 
 
@@ -68,8 +52,8 @@ def test_select_stft_frames_discards_and_resets_decay_origin():
     np.testing.assert_array_equal(
         selected.observed_power, transformed.observed_power[:, :, 3:-4]
     )
-    assert selected.times_s[0] == 0.0
-    np.testing.assert_allclose(np.diff(selected.times_s), 256.0 / 48_000.0)
+    assert selected.frame_time_s[0] == 0.0
+    np.testing.assert_allclose(np.diff(selected.frame_time_s), 256.0 / 48_000.0)
 
 
 @pytest.mark.parametrize(
