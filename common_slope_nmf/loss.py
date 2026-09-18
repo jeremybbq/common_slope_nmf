@@ -7,33 +7,17 @@ from typing import Literal
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
+from .util import _positive_array
+
 Reduction = Literal["none", "sum", "mean"]
-
-
-def _real_finite_array(name: str, values: ArrayLike) -> NDArray[np.float64]:
-    raw = np.asarray(values)
-    if np.iscomplexobj(raw):
-        raise ValueError(f"{name} must contain real values.")
-
-    array = np.asarray(values, dtype=np.float64)
-    if array.size == 0:
-        raise ValueError(f"{name} must not be empty.")
-    if not np.all(np.isfinite(array)):
-        raise ValueError(f"{name} must contain only finite values.")
-    return array
 
 
 def _matching_power_and_variance(
     observed_power: ArrayLike,
     model_variance: ArrayLike,
 ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
-    power = _real_finite_array("observed_power", observed_power)
-    variance = _real_finite_array("model_variance", model_variance)
-
-    if np.any(power <= 0.0):
-        raise ValueError("observed_power must contain only positive values.")
-    if np.any(variance <= 0.0):
-        raise ValueError("model_variance must contain only positive values.")
+    power = _positive_array("observed_power", observed_power)
+    variance = _positive_array("model_variance", model_variance)
     if power.shape != variance.shape:
         raise ValueError("observed_power and model_variance must have the same shape.")
     return power, variance

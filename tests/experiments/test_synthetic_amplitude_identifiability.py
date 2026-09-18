@@ -68,19 +68,19 @@ def test_small_run_uses_matched_complex_gaussian_innovations():
 
 
 def test_ordinary_sage_history_and_archive_round_trip(tmp_path):
-    from common_slope_nmf import amplitude_sage
+    from common_slope_nmf import fit_amplitudes
     from experiments.synthetic.amplitude_identifiability import load_run, save_run
 
     run = run_amplitude_inference(
         seed=13, n_realizations=7, n_frames=40,
         max_sweep_evaluations=3, objective_tol=0.0, fixed_point_tol=0.0,
     )
-    expected = amplitude_sage(
+    expected = fit_amplitudes(
         run.observed_power[0], run.dictionary, run.initial_amplitudes[0],
         max_iter=3, tol=0.0,
     )
     np.testing.assert_allclose(run.estimated_amplitudes[0], expected.amplitudes, rtol=1e-14)
-    np.testing.assert_allclose(run.objective_history[0], expected.objective_history, rtol=1e-14)
+    np.testing.assert_allclose(run.objective_history[0], expected.loss_history, rtol=1e-14)
     assert not np.any(run.converged)
     assert np.all(np.diff(run.objective_history, axis=1) <= 1e-10)
     save_run(run, tmp_path)

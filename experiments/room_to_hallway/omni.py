@@ -27,8 +27,8 @@ import numpy as np
 
 from common_slope_nmf import (
     head_power,
-    init_decay_sage,
-    cw_decay_sage,
+    init_decay,
+    fit_decay,
     rate_to_t60,
     rir_stft_power,
     select_stft_frames,
@@ -323,19 +323,14 @@ def initial_parameters(
         floor ``(R,1)`` in variance units, and the pooled linear-fit T60.
     """
 
-    initialized = init_decay_sage(
+    rate_per_s, _, floor = init_decay(
         observed_power,
         times_s,
-        n_components,
-        rate_bounds_per_s=(
-            t60_to_rate(T60_BOUNDS_S[1]),
-            t60_to_rate(T60_BOUNDS_S[0]),
-        ),
         n_head_frames=N_HEAD_FRAMES,
         n_tail_frames=N_TAIL_FRAMES,
         floor_margin_db=FLOOR_MARGIN_DB,
     )
-    coarse_t60 = np.asarray(rate_to_t60(initialized.linear_rate_per_s))
+    coarse_t60 = np.asarray(rate_to_t60(rate_per_s))
     if initialization == "equal-log-linear":
         initial_t60 = np.repeat(coarse_t60[:, np.newaxis], n_components, axis=1)
     elif initialization == "log-spaced":
@@ -346,7 +341,6 @@ def initial_parameters(
     initial_t60 = np.clip(initial_t60, *T60_BOUNDS_S)
     rates = np.asarray(t60_to_rate(initial_t60), dtype=np.float64)
 
-    floor = initialized.noise_floor
     initial_signal_power = np.maximum(
         head_power(observed_power, N_HEAD_FRAMES) - floor,
         np.finfo(np.float64).tiny,
@@ -423,7 +417,7 @@ def _fit_one_frequency(
         observed_power, times_s, n_components, initialization
     )
     initial_t60 = np.asarray(rate_to_t60(rates[0]))
-    result = cw_decay_sage(
+    result = fit_decay(
         observed_power,
         times_s,
         rates,
@@ -437,7 +431,6 @@ def _fit_one_frequency(
         estimate_noise_floor=True,
         max_iter=max_iter,
         tol=tol,
-        rate_method="newton",
     )
     fitted_t60 = np.asarray(rate_to_t60(result.rates_per_s[0]))
     order = np.argsort(fitted_t60)
@@ -457,9 +450,9 @@ def _fit_one_frequency(
         estimated_t60_s=fitted_t60,
         estimated_amplitudes=fitted_amplitudes,
         estimated_noise_floor=result.noise_floor[:, 0],
-        objective_history=result.objective_history,
+        objective_history=result.loss_history,
         t60_history_s=history_t60,
-        n_iter=np.asarray(result.n_iter),
+        n_iter=np.asarray(result.loss_history.size - 1),
         converged=np.asarray(result.converged),
     )
     return result_path

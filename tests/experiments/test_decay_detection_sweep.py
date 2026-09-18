@@ -3,7 +3,7 @@ import inspect
 import numpy as np
 import pytest
 
-from common_slope_nmf import cw_decay_sage, decay_sage
+from common_slope_nmf import fit_decay
 from experiments.synthetic.decay_robustness import (
     frequency_batches,
     order_decay_components,
@@ -11,13 +11,7 @@ from experiments.synthetic.decay_robustness import (
 
 
 def test_decay_estimators_use_pragmatic_outer_tolerance_default():
-    assert inspect.signature(decay_sage).parameters["tol"].default == 1e-6
-    assert inspect.signature(cw_decay_sage).parameters["tol"].default == 1e-6
-    assert inspect.signature(decay_sage).parameters["decay_tol"].default is None
-    assert (
-        inspect.signature(cw_decay_sage).parameters["decay_tol"].default
-        is None
-    )
+    assert inspect.signature(fit_decay).parameters["tol"].default == 1e-6
 
 
 def test_frequency_batches_cover_all_bins_once():

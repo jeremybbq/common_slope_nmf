@@ -19,7 +19,7 @@ from pathlib import Path
 import numpy as np
 
 from common_slope_nmf import (
-    amplitude_sage,
+    fit_amplitudes,
     exponential_features,
     sample_complex_gaussian,
     t60_to_rate,
@@ -263,7 +263,7 @@ def run_amplitude_inference(
         initial_amplitudes[case_index] = equal_decay_initialization(
             observed_power[case_index]
         )
-        result = amplitude_sage(
+        result = fit_amplitudes(
             observed_power[case_index],
             dictionary,
             initial_amplitudes=initial_amplitudes[case_index],
@@ -271,8 +271,9 @@ def run_amplitude_inference(
             tol=objective_tol,
         )
         estimated_amplitudes[case_index] = result.amplitudes
-        n_sweep_evaluations[case_index] = result.n_iter
-        probe = amplitude_sage(
+        n_sweeps = result.loss_history.size - 1
+        n_sweep_evaluations[case_index] = n_sweeps
+        probe = fit_amplitudes(
             observed_power[case_index], dictionary, result.amplitudes,
             max_iter=1, tol=0.0,
         )
@@ -283,11 +284,11 @@ def run_amplitude_inference(
         converged[case_index] = (
             result.converged and fixed_point_residual[case_index] <= fixed_point_tol
         )
-        objective_history[case_index, :result.n_iter + 1] = result.objective_history
-        initial_objective[case_index] = result.objective_history[0]
-        final_objective[case_index] = result.objective_history[-1]
+        objective_history[case_index, : n_sweeps + 1] = result.loss_history
+        initial_objective[case_index] = result.loss_history[0]
+        final_objective[case_index] = result.loss_history[-1]
         print(
-            f"ratio={ratio_db:+g} dB: sweeps={result.n_iter}, "
+            f"ratio={ratio_db:+g} dB: sweeps={n_sweeps}, "
             f"converged={converged[case_index]}",
             flush=True,
         )

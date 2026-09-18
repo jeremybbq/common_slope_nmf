@@ -50,8 +50,8 @@ run together.
 import numpy as np
 
 from common_slope_nmf import (
-    init_decay_sage,
-    cw_decay_sage,
+    init_decay,
+    fit_decay,
     sample_stft_power,
     t60_to_rate,
 )
@@ -70,19 +70,23 @@ data = sample_stft_power(
     rng=np.random.default_rng(20260817),
 )
 rate_bounds = (t60_to_rate(3.0), t60_to_rate(0.5))
-init = init_decay_sage(
+rate_per_s, amplitudes, noise_floor = init_decay(
     data.observed_power,
     data.frame_time_s,
-    n_components=2,
-    rate_bounds_per_s=rate_bounds,
+    n_head_frames=8,
+    n_tail_frames=8,
 )
-result = cw_decay_sage(
+result = fit_decay(
     data.observed_power,
     data.frame_time_s,
-    init.rates_per_s,
+    np.repeat(
+        np.clip(rate_per_s, *rate_bounds)[:, np.newaxis], 2, axis=1
+    ),
     rate_bounds_per_s=rate_bounds,
-    initial_amplitudes=init.amplitudes,
-    initial_noise_floor=init.noise_floor,
+    initial_amplitudes=np.repeat(
+        (amplitudes / 2.0)[:, :, np.newaxis], 2, axis=2
+    ),
+    initial_noise_floor=noise_floor,
     component_weight_power=2.0,
 )
 ```

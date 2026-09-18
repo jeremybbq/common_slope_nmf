@@ -9,6 +9,7 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 from .model import exponential_variance, t60_to_rate
+from .util import _positive_array
 
 
 @dataclass(frozen=True)
@@ -45,21 +46,6 @@ class SynthData:
     observed_power: NDArray[np.float64]
 
 
-def _positive_variance(variance: ArrayLike) -> NDArray[np.float64]:
-    raw = np.asarray(variance)
-    if np.iscomplexobj(raw):
-        raise ValueError("variance must contain real values.")
-
-    values = np.asarray(variance, dtype=np.float64)
-    if values.size == 0:
-        raise ValueError("variance must not be empty.")
-    if not np.all(np.isfinite(values)):
-        raise ValueError("variance must contain only finite values.")
-    if np.any(values <= 0.0):
-        raise ValueError("variance must contain only positive values.")
-    return values
-
-
 def sample_complex_gaussian(
     variance: ArrayLike,
     *,
@@ -80,7 +66,7 @@ def sample_complex_gaussian(
         Complex coefficients with the same shape as ``variance``.
     """
 
-    values = _positive_variance(variance)
+    values = _positive_array("variance", variance)
 
     if rng is None:
         rng = np.random.default_rng()

@@ -9,14 +9,12 @@ from pathlib import Path
 import numpy as np
 
 from common_slope_nmf import (
-    AmplitudeSAGEResult,
-    DecaySAGEInit,
-    DecaySAGEResult,
-    amplitude_sage,
-    decay_sage,
+    AmplitudeFit,
+    DecayFit,
+    fit_amplitudes,
+    fit_decay,
     exponential_variance,
-    init_decay_sage,
-    cw_decay_sage,
+    init_decay,
     rate_to_t60,
     sample_power,
     t60_to_rate,
@@ -74,49 +72,52 @@ def _rate_bounds() -> tuple[float, float]:
 
 def _init_from_data(
     observed_power: np.ndarray, times_s: np.ndarray
-) -> DecaySAGEInit:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Return pooled-regression decay and equal-amplitude initialization."""
 
-    return init_decay_sage(
+    rate_per_s, amplitudes, noise_floor = init_decay(
         observed_power,
         times_s,
-        N_COMPONENTS,
-        rate_bounds_per_s=_rate_bounds(),
         n_head_frames=8,
         n_tail_frames=8,
         floor_margin_db=6.0,
     )
+    lower_per_s, upper_per_s = _rate_bounds()
+    rates_per_s = np.repeat(
+        np.clip(rate_per_s, lower_per_s, upper_per_s)[:, np.newaxis],
+        N_COMPONENTS,
+        axis=1,
+    )
+    split_amplitudes = np.repeat(
+        (amplitudes / N_COMPONENTS)[:, :, np.newaxis], N_COMPONENTS, axis=2
+    )
+    return rates_per_s, split_amplitudes, noise_floor
 
 
 def _fit_method(
     observed_power: np.ndarray,
     times_s: np.ndarray,
-    init: DecaySAGEInit,
+    initial_rates_per_s: np.ndarray,
+    initial_amplitudes: np.ndarray,
+    initial_noise_floor: np.ndarray,
     component_weight_power: float | None,
     *,
     max_iter: int,
     tol: float,
-    rate_method: str,
-) -> DecaySAGEResult:
+) -> DecayFit:
     """Fit one method to power ``(R,1,N)`` from the shared warm start."""
 
-    common = dict(
+    return fit_decay(
+        observed_power,
+        times_s,
+        initial_rates_per_s,
         rate_bounds_per_s=_rate_bounds(),
-        initial_amplitudes=init.amplitudes,
-        initial_noise_floor=init.noise_floor,
+        initial_amplitudes=initial_amplitudes,
+        initial_noise_floor=initial_noise_floor,
         estimate_noise_floor=True,
         max_iter=max_iter,
         tol=tol,
-        rate_method=rate_method,
-    )
-    if component_weight_power is None:
-        return decay_sage(observed_power, times_s, init.rates_per_s, **common)
-    return cw_decay_sage(
-        observed_power,
-        times_s,
-        init.rates_per_s,
         component_weight_power=component_weight_power,
-        **common,
     )
 
 
@@ -127,7 +128,6 @@ def run_loss_comparison(
     n_rirs: int,
     max_iter: int,
     tol: float,
-    rate_method: str,
 ) -> dict[str, object]:
     """Fit the three SAGE orders to one controlled two-decay dataset.
 
@@ -140,11 +140,9 @@ def run_loss_comparison(
     n_rirs
         Number of independent RIR realizations ``R``.
     max_iter
-        Maximum number of complete component sweeps.
+        Maximum number of complete component iterations.
     tol
         Relative observed IS-loss stopping tolerance.
-    rate_method
-        Profile-rate solver, ``"newton"`` or ``"bisection"``.
 
     Returns
     -------
@@ -165,7 +163,9 @@ def run_loss_comparison(
         noise_floor=true_noise_floor,
     )
     observed_power = sample_power(exact_variance, rng=rng)
-    init = _init_from_data(observed_power, times_s)
+    init_rates_per_s, init_amplitudes, init_noise_floor = _init_from_data(
+        observed_power, times_s
+    )
 
     histories: list[np.ndarray] = []
     rate_histories: list[np.ndarray] = []
@@ -180,11 +180,12 @@ def run_loss_comparison(
         result = _fit_method(
             observed_power,
             times_s,
-            init,
+            init_rates_per_s,
+            init_amplitudes,
+            init_noise_floor,
             power,
             max_iter=max_iter,
             tol=tol,
-            rate_method=rate_method,
         )
         estimated_t60_s[method_index] = np.sort(
             rate_to_t60(result.rates_per_s[0])
@@ -192,9 +193,9 @@ def run_loss_comparison(
         estimated_rates_per_s[method_index] = result.rates_per_s
         estimated_amplitudes[method_index] = result.amplitudes
         estimated_noise_floor[method_index] = result.noise_floor
-        n_iter[method_index] = result.n_iter
+        n_iter[method_index] = result.loss_history.size - 1
         converged[method_index] = result.converged
-        histories.append(result.objective_history.copy())
+        histories.append(result.loss_history.copy())
         rate_histories.append(
             np.sort(rate_to_t60(result.rate_history_per_s[:, 0, :]), axis=1)
         )
@@ -206,10 +207,10 @@ def run_loss_comparison(
         "true_noise_floor": true_noise_floor,
         "observed_power": observed_power,
         "exact_variance": exact_variance,
-        "init_rates_per_s": init.rates_per_s,
-        "init_amplitudes": init.amplitudes,
-        "init_noise_floor": init.noise_floor,
-        "initial_t60_s": np.sort(rate_to_t60(init.rates_per_s[0])),
+        "init_rates_per_s": init_rates_per_s,
+        "init_amplitudes": init_amplitudes,
+        "init_noise_floor": init_noise_floor,
+        "initial_t60_s": np.sort(rate_to_t60(init_rates_per_s[0])),
         "estimated_t60_s": estimated_t60_s,
         "estimated_rates_per_s": estimated_rates_per_s,
         "estimated_amplitudes": estimated_amplitudes,
@@ -236,10 +237,10 @@ def _profile_one_point(
     *,
     max_iter: int,
     tol: float,
-) -> AmplitudeSAGEResult:
+) -> AmplitudeFit:
     """Profile amplitudes and the floor for one supplied T60 pair."""
 
-    return amplitude_sage(
+    return fit_amplitudes(
         observed_power,
         _fixed_rate_atoms(times_s, t60_s),
         initial_amplitudes=initial_joint_amplitudes,
@@ -349,8 +350,8 @@ def profile_fixed_rate_loss_surface(
                 max_iter=max_iter,
                 tol=tol,
             )
-            continuation_value = continuation_result.objective_history[-1]
-            independent_value = independent_result.objective_history[-1]
+            continuation_value = continuation_result.loss_history[-1]
+            independent_value = independent_result.loss_history[-1]
             use_independent = (
                 independent_result.converged and not continuation_result.converged
             ) or (
@@ -362,10 +363,10 @@ def profile_fixed_rate_loss_surface(
             continuation_loss[long_index, short_index] = continuation_value
             independent_loss[long_index, short_index] = independent_value
             selected_independent[long_index, short_index] = use_independent
-            loss[long_index, short_index] = result.objective_history[-1]
+            loss[long_index, short_index] = result.loss_history[-1]
             fitted_amplitudes[long_index, short_index] = result.amplitudes[:, :2]
             fitted_floor[long_index, short_index] = result.amplitudes[:, 2]
-            n_iter[long_index, short_index] = result.n_iter
+            n_iter[long_index, short_index] = result.loss_history.size - 1
             converged[long_index, short_index] = result.converged
 
     cold_index_list = [
@@ -439,7 +440,7 @@ def _arguments() -> argparse.Namespace:
         "--tol",
         type=float,
         default=DECAY_LOSS_TOL,
-        help="Relative total observed-loss tolerance; zero uses all sweeps.",
+        help="Relative total observed-loss tolerance; zero uses all iterations.",
     )
     parser.add_argument("--surface-grid-size", type=int, default=SURFACE_GRID_SIZE)
     parser.add_argument("--surface-max-iter", type=int, default=2_000)
@@ -448,9 +449,6 @@ def _arguments() -> argparse.Namespace:
         type=float,
         default=SURFACE_LOSS_TOL,
         help="Relative IS-loss tolerance for fixed-rate amplitude profiling.",
-    )
-    parser.add_argument(
-        "--rate-method", choices=("newton", "bisection"), default="newton"
     )
     parser.add_argument("--seed", type=int, default=SEED)
     parser.add_argument("--output-root", type=Path, default=Path("output"))
@@ -487,7 +485,6 @@ def main() -> None:
         n_rirs=args.n_rirs,
         max_iter=args.max_iter,
         tol=args.tol,
-        rate_method=args.rate_method,
     )
     histories = result["histories"]
     trajectories = result["t60_trajectories_s"]
@@ -538,7 +535,6 @@ def main() -> None:
         estimated_rates_per_s=result["estimated_rates_per_s"],
         estimated_amplitudes=result["estimated_amplitudes"],
         estimated_noise_floor=result["estimated_noise_floor"],
-        rate_method=np.asarray(args.rate_method),
         n_iter=result["n_iter"],
         converged=result["converged"],
         surface_short_t60_s=short_t60_s,

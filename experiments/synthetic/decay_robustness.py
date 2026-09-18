@@ -9,10 +9,10 @@ from pathlib import Path
 import numpy as np
 
 from common_slope_nmf import (
-    DecaySAGEResult,
+    DecayFit,
     exponential_variance,
-    init_decay_sage,
-    cw_decay_sage,
+    init_decay,
+    fit_decay,
     rate_to_t60,
     sample_power,
     sample_t60,
@@ -124,12 +124,10 @@ def _fit_method(
     *,
     max_iter: int,
     tol: float,
-    decay_tol: float,
-    rate_method: str,
-) -> DecaySAGEResult:
+) -> DecayFit:
     """Fit one contribution-weighted SAGE order to power ``(R,F,N)``."""
 
-    return cw_decay_sage(
+    return fit_decay(
         observed_power,
         times_s,
         initial_rates_per_s,
@@ -140,13 +138,11 @@ def _fit_method(
         estimate_noise_floor=True,
         max_iter=max_iter,
         tol=tol,
-        decay_tol=decay_tol,
-        rate_method=rate_method,
     )
 
 
 def _ordered_fit(
-    result: DecaySAGEResult,
+    result: DecayFit,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Return sorted T60 ``(F,2)`` and correspondingly ordered amplitudes."""
 
@@ -165,31 +161,6 @@ def _per_frequency_is(
     return np.sum(ratio - np.log(ratio) - 1.0, axis=(0, 2))
 
 
-def _stopping_flags(
-    result: DecaySAGEResult, tol: float, decay_tol: float
-) -> tuple[bool, bool]:
-    """Return whether the final sweep meets the loss and decay gates."""
-
-    previous_objective, final_objective = result.objective_history[-2:]
-    decrease = previous_objective - final_objective
-    roundoff = (
-        64.0 * np.finfo(np.float64).eps * max(1.0, previous_objective)
-    )
-    loss_converged = (
-        decrease >= -roundoff
-        and decrease <= tol * max(1.0, previous_objective)
-    )
-    decay_change = np.max(
-        np.abs(
-            np.log(
-                result.rate_history_per_s[-1]
-                / result.rate_history_per_s[-2]
-            )
-        )
-    )
-    return loss_converged, bool(decay_change <= decay_tol)
-
-
 def run_identifiability_comparison(
     rng: np.random.Generator,
     times_s: np.ndarray,
@@ -199,8 +170,6 @@ def run_identifiability_comparison(
     batch_size: int,
     max_iter: int,
     tol: float,
-    decay_tol: float,
-    rate_method: str,
 ) -> dict[str, np.ndarray]:
     """Fit contribution-weighted SAGE p=1 and p=2 to independent random T60 pairs.
 
@@ -218,12 +187,9 @@ def run_identifiability_comparison(
         Number of frequency bins per estimator call. Use one for independent
         per-bin stopping decisions.
     max_iter
-        Maximum complete component sweeps per fit.
-    tol, decay_tol
-        Dimensionless loss and outer decay-stability tolerances. Either gate
-        may stop a fit.
-    rate_method
-        Profile-rate solver, ``"newton"`` or ``"bisection"``.
+        Maximum complete component iterations per fit.
+    tol
+        Dimensionless loss stopping tolerance.
 
     Returns
     -------
@@ -255,8 +221,6 @@ def run_identifiability_comparison(
     batch_converged = np.empty_like(batch_n_iter, dtype=bool)
     frequency_n_iter = np.empty((n_methods, n_pairs), dtype=np.int64)
     frequency_converged = np.empty((n_methods, n_pairs), dtype=bool)
-    frequency_loss_converged = np.empty((n_methods, n_pairs), dtype=bool)
-    frequency_decay_converged = np.empty((n_methods, n_pairs), dtype=bool)
     objective_history = np.full(
         (n_methods, len(batches), max_iter + 1), np.nan
     )
@@ -271,14 +235,23 @@ def run_identifiability_comparison(
             noise_floor=true_noise_floor[:, frequency_slice],
         )
         observed_power = sample_power(exact_variance, rng=rng)
-        init = init_decay_sage(
+        init_rate_per_s, init_amplitudes, init_noise_floor = init_decay(
             observed_power,
             times_s,
-            N_COMPONENTS,
-            rate_bounds_per_s=_rate_bounds(),
             n_head_frames=8,
             n_tail_frames=8,
             floor_margin_db=6.0,
+        )
+        lower_per_s, upper_per_s = _rate_bounds()
+        init_rates_per_s = np.repeat(
+            np.clip(init_rate_per_s, lower_per_s, upper_per_s)[:, np.newaxis],
+            N_COMPONENTS,
+            axis=1,
+        )
+        init_amplitudes = np.repeat(
+            (init_amplitudes / N_COMPONENTS)[:, :, np.newaxis],
+            N_COMPONENTS,
+            axis=2,
         )
         for method_index, power in enumerate(METHOD_POWERS):
             print(
@@ -289,16 +262,15 @@ def run_identifiability_comparison(
             result = _fit_method(
                 observed_power,
                 times_s,
-                init.rates_per_s,
-                init.amplitudes,
-                init.noise_floor,
+                init_rates_per_s,
+                init_amplitudes,
+                init_noise_floor,
                 power,
                 max_iter=max_iter,
                 tol=tol,
-                decay_tol=decay_tol,
-                rate_method=rate_method,
             )
-            rate_history_per_s[method_index, :result.n_iter + 1, frequency_slice] = result.rate_history_per_s
+            n_iter = result.loss_history.size - 1
+            rate_history_per_s[method_index, : n_iter + 1, frequency_slice] = result.rate_history_per_s
             ordered_t60_s, ordered_amplitudes = _ordered_fit(result)
             estimated_t60_s[method_index, frequency_slice] = ordered_t60_s
             estimated_amplitudes[
@@ -308,22 +280,21 @@ def run_identifiability_comparison(
                 method_index, :, frequency_slice
             ] = result.noise_floor
             final_is[method_index, frequency_slice] = _per_frequency_is(
-                observed_power, result.variance
+                observed_power,
+                exponential_variance(
+                    times_s,
+                    result.rates_per_s,
+                    result.amplitudes,
+                    result.noise_floor,
+                ),
             )
-            batch_n_iter[method_index, batch_index] = result.n_iter
+            batch_n_iter[method_index, batch_index] = n_iter
             batch_converged[method_index, batch_index] = result.converged
-            frequency_n_iter[method_index, frequency_slice] = result.n_iter
+            frequency_n_iter[method_index, frequency_slice] = n_iter
             frequency_converged[method_index, frequency_slice] = result.converged
-            loss_gate, decay_gate = _stopping_flags(result, tol, decay_tol)
-            frequency_loss_converged[
-                method_index, frequency_slice
-            ] = loss_gate
-            frequency_decay_converged[
-                method_index, frequency_slice
-            ] = decay_gate
             objective_history[
-                method_index, batch_index, : result.objective_history.size
-            ] = result.objective_history
+                method_index, batch_index, : result.loss_history.size
+            ] = result.loss_history
 
     return {
         "true_t60_s": true_t60_s,
@@ -337,8 +308,6 @@ def run_identifiability_comparison(
         "batch_converged": batch_converged,
         "frequency_n_iter": frequency_n_iter,
         "frequency_converged": frequency_converged,
-        "frequency_loss_converged": frequency_loss_converged,
-        "frequency_decay_converged": frequency_decay_converged,
         "objective_history": objective_history,
         "rate_history_per_s": rate_history_per_s,
     }
@@ -362,18 +331,6 @@ def _arguments() -> argparse.Namespace:
         default=1e-6,
         help="Relative observed-loss stopping tolerance.",
     )
-    parser.add_argument(
-        "--decay-tol",
-        type=float,
-        default=1e-6,
-        help=(
-            "Maximum absolute log change in decay estimates. Stopping occurs "
-            "when this or --tol is met."
-        ),
-    )
-    parser.add_argument(
-        "--rate-method", choices=("newton", "bisection"), default="newton"
-    )
     parser.add_argument("--seed", type=int, default=SEED)
     parser.add_argument("--output-root", type=Path, default=Path("output"))
     args = parser.parse_args()
@@ -382,7 +339,7 @@ def _arguments() -> argparse.Namespace:
             parser.error(f"--{name.replace('_', '-')} must be positive")
     if args.n_frames < 17:
         parser.error("--n-frames must be at least 17")
-    for name in ("tol", "decay_tol"):
+    for name in ("tol",):
         value = getattr(args, name)
         if not np.isfinite(value) or value < 0.0:
             parser.error(f"--{name.replace('_', '-')} must be finite and non-negative")
@@ -404,8 +361,6 @@ def main() -> None:
         batch_size=args.batch_size,
         max_iter=args.max_iter,
         tol=args.tol,
-        decay_tol=args.decay_tol,
-        rate_method=args.rate_method,
     )
     archive_path = output_dir / "t60_identifiability_results.npz"
     np.savez_compressed(
@@ -429,7 +384,7 @@ def main() -> None:
         print(
             f"{key}: converged="
             f"{int(np.sum(result['frequency_converged'][method_index]))}/"
-            f"{args.n_pairs}, median_sweeps="
+            f"{args.n_pairs}, median_iterations="
             f"{np.median(result['frequency_n_iter'][method_index]):.1f}"
         )
     print(f"saved={archive_path.resolve()}")

@@ -1,33 +1,13 @@
-"""Shared array checks and SAGE control helpers."""
+"""SAGE control helpers."""
 
 from __future__ import annotations
 
 from numbers import Integral
 
 import numpy as np
-from numpy.typing import ArrayLike, NDArray
+from numpy.typing import NDArray
 
-def _real_array(name: str, values: ArrayLike) -> NDArray[np.float64]:
-    raw = np.asarray(values)
-    if np.iscomplexobj(raw):
-        raise ValueError(f"{name} must contain real values.")
-    array = np.asarray(values, dtype=np.float64)
-    if array.size == 0:
-        raise ValueError(f"{name} must not be empty.")
-    if not np.all(np.isfinite(array)):
-        raise ValueError(f"{name} must contain only finite values.")
-    return array
-
-
-def _positive_array(
-    name: str, values: ArrayLike, ndim: int | None = None
-) -> NDArray[np.float64]:
-    array = _real_array(name, values)
-    if ndim is not None and array.ndim != ndim:
-        raise ValueError(f"{name} must have {ndim} dimensions.")
-    if np.any(array <= 0.0):
-        raise ValueError(f"{name} must contain only positive values.")
-    return array
+from ..util import _finite_real_array as _real_array, _positive_array
 
 
 def _check_controls(max_iter: int, tol: float, min_amplitude: float) -> None:
@@ -44,13 +24,13 @@ def _check_controls(max_iter: int, tol: float, min_amplitude: float) -> None:
 def _has_converged(
     history: list[float], tol: float, *, require_monotone: bool = True
 ) -> bool:
-    previous, objective = history[-2:]
-    decrease = previous - objective
+    previous, loss = history[-2:]
+    decrease = previous - loss
     roundoff = 64.0 * np.finfo(np.float64).eps * max(1.0, previous)
     if decrease < -roundoff:
         if require_monotone:
             raise RuntimeError(
-                "IS objective increased beyond floating-point tolerance."
+                "IS loss increased beyond floating-point tolerance."
             )
         return False
     return decrease <= tol * max(1.0, previous)
@@ -58,18 +38,31 @@ def _has_converged(
 
 def _initial_amplitudes(
     observed_power: NDArray[np.float64],
-    atoms: NDArray[np.float64],
+    features: NDArray[np.float64],
 ) -> NDArray[np.float64]:
-    n_components = atoms.shape[0]
+    K = features.shape[0]
     mean_power = np.mean(observed_power, axis=1, keepdims=True)
-    mean_atoms = np.mean(atoms, axis=1, keepdims=True).T
-    return mean_power / (n_components * mean_atoms)
+    mean_features = np.mean(features, axis=1, keepdims=True).T
+    return mean_power / (K * mean_features)
 
-def _broadcast_rate_bound(
-    name: str, values: ArrayLike, shape: tuple[int, ...]
-) -> NDArray[np.float64]:
-    bound = _positive_array(name, values)
-    try:
-        return np.broadcast_to(bound, shape).astype(np.float64, copy=True)
-    except ValueError as exc:
-        raise ValueError(f"{name} must broadcast to shape {shape}.") from exc
+
+def _rate_bound_pair(bounds: tuple[float, float]) -> tuple[float, float]:
+    if len(bounds) != 2:
+        raise ValueError("rate_bounds_per_s must contain (lower, upper).")
+    lower, upper = bounds
+    if (
+        isinstance(lower, bool)
+        or isinstance(upper, bool)
+        or not np.isscalar(lower)
+        or not np.isscalar(upper)
+    ):
+        raise TypeError("rate bounds must be real scalars.")
+    lower_per_s = float(lower)
+    upper_per_s = float(upper)
+    if not np.isfinite(lower_per_s) or lower_per_s <= 0.0:
+        raise ValueError("lower rate bound must be finite and positive.")
+    if not np.isfinite(upper_per_s) or upper_per_s <= 0.0:
+        raise ValueError("upper rate bound must be finite and positive.")
+    if lower_per_s >= upper_per_s:
+        raise ValueError("every lower rate bound must be below its upper bound.")
+    return lower_per_s, upper_per_s

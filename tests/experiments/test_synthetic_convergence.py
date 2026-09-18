@@ -37,7 +37,6 @@ def test_small_loss_comparison_uses_uniform_complementary_amplitudes():
         n_rirs=32,
         max_iter=1,
         tol=1e-4,
-        rate_method="newton",
     )
 
     amplitudes = np.asarray(result["true_amplitudes"])

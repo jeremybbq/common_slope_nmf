@@ -1,20 +1,15 @@
 """SAGE updates for exponential complex-Gaussian variance models."""
 
-from .amplitudes import AmplitudeSAGEResult, amplitude_sage
-from .decay import DecaySAGEResult, DecaySAGEUpdateDiagnostics, decay_sage
-from .init import DecaySAGEInit, init_decay_sage
-from .rates import update_rates_bisection, update_rates_newton
-from .weighted import cw_decay_sage
+from .amplitudes import AmplitudeFit, fit_amplitudes
+from .decay import DecayFit, fit_decay
+from .init import init_decay
+from .rates import update_rates_newton
 
 __all__ = [
-    "AmplitudeSAGEResult",
-    "DecaySAGEInit",
-    "DecaySAGEResult",
-    "DecaySAGEUpdateDiagnostics",
-    "amplitude_sage",
-    "cw_decay_sage",
-    "decay_sage",
-    "init_decay_sage",
-    "update_rates_bisection",
+    "AmplitudeFit",
+    "DecayFit",
+    "fit_amplitudes",
+    "fit_decay",
+    "init_decay",
     "update_rates_newton",
 ]

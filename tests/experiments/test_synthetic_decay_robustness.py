@@ -24,8 +24,6 @@ def test_small_identifiability_comparison_preserves_result_dimensions():
         batch_size=1,
         max_iter=1,
         tol=0.0,
-        decay_tol=0.0,
-        rate_method="newton",
     )
 
     assert result["true_t60_s"].shape == (2, 2)

@@ -8,12 +8,13 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 from scipy.special import logsumexp
 
-from ._util import _broadcast_rate_bound, _positive_array, _real_array
+from ._util import _positive_array, _rate_bound_pair, _real_array
+
 
 def _profile_statistics(
     posterior_power: NDArray[np.float64],
     surrogate_weights: NDArray[np.float64],
-    times_s: NDArray[np.float64],
+    frame_time_s: NDArray[np.float64],
     rates_per_s: NDArray[np.float64],
 ) -> tuple[
     NDArray[np.float64],
@@ -26,14 +27,14 @@ def _profile_statistics(
     log_weights = (
         np.log(positive_posterior)
         + log_surrogate_weights
-        + rates_per_s[np.newaxis, :, np.newaxis] * times_s
+        + rates_per_s[np.newaxis, :, np.newaxis] * frame_time_s
     )
     log_moments = logsumexp(log_weights, axis=2)
     normalized = np.exp(log_weights - log_moments[:, :, np.newaxis])
-    weighted_time = np.sum(normalized * times_s, axis=2)
-    weighted_time_squared = np.sum(normalized * times_s**2, axis=2)
+    weighted_time = np.sum(normalized * frame_time_s, axis=2)
+    weighted_time_squared = np.sum(normalized * frame_time_s**2, axis=2)
     weight_sums = np.sum(surrogate_weights, axis=2)
-    weighted_time_sums = np.sum(surrogate_weights * times_s, axis=2)
+    weighted_time_sums = np.sum(surrogate_weights * frame_time_s, axis=2)
     gradient = np.sum(weight_sums * weighted_time - weighted_time_sums, axis=0)
     weighted_variance = weighted_time_squared - weighted_time**2
     hessian = np.sum(weight_sums * np.maximum(weighted_variance, 0.0), axis=0)
@@ -42,9 +43,9 @@ def _profile_statistics(
 
 def _validate_profile_update(
     posterior_power: ArrayLike,
-    times_s: ArrayLike,
+    frame_time_s: ArrayLike,
     initial_rates_per_s: ArrayLike,
-    rate_bounds_per_s: tuple[ArrayLike, ArrayLike],
+    rate_bounds_per_s: tuple[float, float],
     surrogate_weights: ArrayLike | None,
     *,
     max_iter: int,
@@ -54,17 +55,17 @@ def _validate_profile_update(
     NDArray[np.float64],
     NDArray[np.float64],
     NDArray[np.float64],
-    NDArray[np.float64],
-    NDArray[np.float64],
+    float,
+    float,
 ]:
     posterior = _positive_array("posterior_power", posterior_power, ndim=3)
-    times = _real_array("times_s", times_s)
+    times = _real_array("frame_time_s", frame_time_s)
     if times.ndim != 1:
-        raise ValueError("times_s must have one dimension.")
+        raise ValueError("frame_time_s must have one dimension.")
     if np.any(times < 0.0) or np.ptp(times) <= 0.0:
-        raise ValueError("times_s must be non-negative and contain variation.")
+        raise ValueError("frame_time_s must be non-negative and contain variation.")
     if posterior.shape[2] != times.size:
-        raise ValueError("posterior_power and times_s must have the same frame count.")
+        raise ValueError("posterior_power and frame_time_s must have the same frame count.")
     if surrogate_weights is None:
         weights = np.ones_like(posterior)
     else:
@@ -87,15 +88,11 @@ def _validate_profile_update(
     rates = _positive_array("initial_rates_per_s", initial_rates_per_s, ndim=1).copy()
     if rates.shape != (posterior.shape[1],):
         raise ValueError("initial_rates_per_s must have shape (F,).")
-    if len(rate_bounds_per_s) != 2:
-        raise ValueError("rate_bounds_per_s must contain (lower, upper).")
-    lower = _broadcast_rate_bound("lower rate bound", rate_bounds_per_s[0], rates.shape)
-    upper = _broadcast_rate_bound("upper rate bound", rate_bounds_per_s[1], rates.shape)
-    if np.any(lower >= upper):
-        raise ValueError("every lower rate bound must be below its upper bound.")
-    maximum_exponent = np.max(upper) * np.max(times)
-    if maximum_exponent >= -np.log(np.finfo(np.float64).tiny):
-        raise ValueError("upper rate bounds underflow exponential atoms over times_s.")
+    lower, upper = _rate_bound_pair(rate_bounds_per_s)
+    if upper * np.max(times) >= -np.log(np.finfo(np.float64).tiny):
+        raise ValueError(
+            "upper rate bound underflows exponential features over frame_time_s."
+        )
     if np.any((rates < lower) | (rates > upper)):
         raise ValueError("initial_rates_per_s must lie within rate bounds.")
     if isinstance(max_iter, bool) or not isinstance(max_iter, Integral):
@@ -110,116 +107,47 @@ def _validate_profile_update(
 def _bounded_profile_setup(
     posterior_power: NDArray[np.float64],
     surrogate_weights: NDArray[np.float64],
-    times_s: NDArray[np.float64],
-    lower_per_s: NDArray[np.float64],
-    upper_per_s: NDArray[np.float64],
+    frame_time_s: NDArray[np.float64],
+    lower_per_s: float,
+    upper_per_s: float,
 ) -> tuple[
     NDArray[np.bool_],
     NDArray[np.float64],
     NDArray[np.float64],
     NDArray[np.float64],
 ]:
+    n_frequencies = posterior_power.shape[1]
+    lower_rates = np.full(n_frequencies, lower_per_s)
+    upper_rates = np.full(n_frequencies, upper_per_s)
     lower_gradient, _, _ = _profile_statistics(
-        posterior_power, surrogate_weights, times_s, lower_per_s
+        posterior_power, surrogate_weights, frame_time_s, lower_rates
     )
     upper_gradient, _, _ = _profile_statistics(
-        posterior_power, surrogate_weights, times_s, upper_per_s
+        posterior_power, surrogate_weights, frame_time_s, upper_rates
     )
     interior = (lower_gradient < 0.0) & (upper_gradient > 0.0)
-    rates = np.where(lower_gradient >= 0.0, lower_per_s, upper_per_s)
-    return interior, rates, lower_per_s.copy(), upper_per_s.copy()
+    rates = np.where(lower_gradient >= 0.0, lower_rates, upper_rates)
+    return interior, rates, lower_rates, upper_rates
 
 
 def _profile_amplitudes(
     posterior_power: NDArray[np.float64],
     surrogate_weights: NDArray[np.float64],
-    times_s: NDArray[np.float64],
+    frame_time_s: NDArray[np.float64],
     rates_per_s: NDArray[np.float64],
 ) -> NDArray[np.float64]:
     _, _, log_moments = _profile_statistics(
-        posterior_power, surrogate_weights, times_s, rates_per_s
+        posterior_power, surrogate_weights, frame_time_s, rates_per_s
     )
     log_weight_sums = np.log(np.sum(surrogate_weights, axis=2))
     return np.exp(log_moments - log_weight_sums)
 
 
-def update_rates_bisection(
-    posterior_power: ArrayLike,
-    times_s: ArrayLike,
-    initial_rates_per_s: ArrayLike,
-    rate_bounds_per_s: tuple[ArrayLike, ArrayLike],
-    *,
-    surrogate_weights: ArrayLike | None = None,
-    max_iter: int = 48,
-    tol: float = 1e-12,
-) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
-    """Minimize profiled component surrogates by bracketed bisection.
-
-    Parameters
-    ----------
-    posterior_power
-        Positive SAGE posterior component powers, shape ``(R, F, N)``, in
-        variance units.
-    times_s
-        Non-negative elapsed frame times in seconds, shape ``(N,)``.
-    initial_rates_per_s
-        Positive current decay rates in inverse seconds, shape ``(F,)``. They
-        are validated for API consistency but bisection uses the full bracket.
-    rate_bounds_per_s
-        Positive lower and upper rate bounds, each broadcastable to ``(F,)``.
-    surrogate_weights
-        Optional non-negative fixed M-step weights, broadcastable to
-        ``(R,F,N)``, with a positive frame sum for every ``(R,F)`` row.
-        ``None`` uses unit weights and recovers ordinary SAGE.
-    max_iter
-        Maximum number of interval halvings.
-    tol
-        Relative bracket-width tolerance in rate units.
-
-    Returns
-    -------
-    rates_per_s, amplitudes
-        Profile-optimal bounded rates, shape ``(F,)``, and their exact
-        unit-origin variance amplitudes, shape ``(R, F)``.
-    """
-
-    posterior, weights, times, _, lower, upper = _validate_profile_update(
-        posterior_power,
-        times_s,
-        initial_rates_per_s,
-        rate_bounds_per_s,
-        surrogate_weights,
-        max_iter=max_iter,
-        tol=tol,
-    )
-    interior, rates, bracket_lower, bracket_upper = _bounded_profile_setup(
-        posterior, weights, times, lower, upper
-    )
-
-    for _ in range(int(max_iter)):
-        midpoint = 0.5 * (bracket_lower + bracket_upper)
-        midpoint_gradient, _, _ = _profile_statistics(
-            posterior, weights, times, midpoint
-        )
-        move_lower = midpoint_gradient < 0.0
-        bracket_lower = np.where(interior & move_lower, midpoint, bracket_lower)
-        bracket_upper = np.where(interior & ~move_lower, midpoint, bracket_upper)
-        relative_width = (bracket_upper - bracket_lower) / np.maximum(
-            1.0, np.abs(midpoint)
-        )
-        if np.all(~interior | (relative_width <= tol)):
-            break
-
-    rates = np.where(interior, 0.5 * (bracket_lower + bracket_upper), rates)
-    amplitudes = _profile_amplitudes(posterior, weights, times, rates)
-    return rates, amplitudes
-
-
 def update_rates_newton(
     posterior_power: ArrayLike,
-    times_s: ArrayLike,
+    frame_time_s: ArrayLike,
     initial_rates_per_s: ArrayLike,
-    rate_bounds_per_s: tuple[ArrayLike, ArrayLike],
+    rate_bounds_per_s: tuple[float, float],
     *,
     surrogate_weights: ArrayLike | None = None,
     max_iter: int = 24,
@@ -230,18 +158,15 @@ def update_rates_newton(
     Parameters
     ----------
     posterior_power
-        Positive SAGE posterior component powers, shape ``(R, F, N)``, in
-        variance units.
-    times_s
+        Positive SAGE posterior component powers, shape ``(R, F, N)``, in variance units.
+    frame_time_s
         Non-negative elapsed frame times in seconds, shape ``(N,)``.
     initial_rates_per_s
         Positive current decay rates in inverse seconds, shape ``(F,)``.
     rate_bounds_per_s
-        Positive lower and upper rate bounds, each broadcastable to ``(F,)``.
+        Positive lower and upper rate bounds as a pair of floats in inverse seconds.
     surrogate_weights
-        Optional non-negative fixed M-step weights, broadcastable to
-        ``(R,F,N)``, with a positive frame sum for every ``(R,F)`` row.
-        ``None`` uses unit weights and recovers ordinary SAGE.
+        Optional non-negative fixed M-step weights, broadcastable to ``(R,F,N)``, with a positive frame sum for every ``(R,F)`` row. ``None`` uses unit weights and recovers original SAGE.
     max_iter
         Maximum number of safeguarded Newton iterations.
     tol
@@ -250,19 +175,16 @@ def update_rates_newton(
     Returns
     -------
     rates_per_s, amplitudes
-        Profile-optimal bounded rates, shape ``(F,)``, and their exact
-        unit-origin variance amplitudes, shape ``(R, F)``.
+        Profile-optimal bounded rates, shape ``(F,)``, and their exact unit-origin variance amplitudes, shape ``(R, F)``.
 
     Notes
     -----
-    Each iteration proposes ``rate - gradient / hessian`` using the analytic
-    profile Hessian. A proposal outside its valid bracket, or one with unusable
-    curvature, is replaced by the bracket midpoint.
+    Each iteration proposes ``rate - gradient / hessian`` using the analytic profile Hessian. A proposal outside its valid bracket, or one with unusable curvature, is replaced by the bracket midpoint.
     """
 
     posterior, weights, times, initial, lower, upper = _validate_profile_update(
         posterior_power,
-        times_s,
+        frame_time_s,
         initial_rates_per_s,
         rate_bounds_per_s,
         surrogate_weights,
