@@ -1,6 +1,6 @@
 """Research package for constrained multi-slope IS-NMF decay estimation."""
 
-from .is_objective import gaussian_variance_nll, is_divergence
+from .loss import is_divergence
 from .georg_baselines import (
     CommonSlopeEDCFit,
     DecayFitNetEstimate,
@@ -11,7 +11,7 @@ from .georg_baselines import (
     fit_common_slope_edcs,
 )
 from .model import (
-    exponential_atoms,
+    exponential_features,
     exponential_variance,
     rate_to_t60,
     t60_to_rate,
@@ -61,9 +61,8 @@ __all__ = [
     "decay_sage",
     "determine_common_decay_times",
     "edc_to_equivalent_rir_power_amplitudes",
-    "exponential_atoms",
+    "exponential_features",
     "exponential_variance",
-    "gaussian_variance_nll",
     "fit_coarse_decay",
     "fit_common_slope_edcs",
     "global_energy_onset",

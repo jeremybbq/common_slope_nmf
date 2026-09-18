@@ -1,10 +1,7 @@
 import numpy as np
 import pytest
 
-from common_slope_nmf.is_objective import (
-    gaussian_variance_nll,
-    is_divergence,
-)
+from common_slope_nmf.loss import is_divergence
 
 
 def test_is_divergence_is_zero_at_identity_and_scale_invariant():
@@ -20,18 +17,17 @@ def test_is_divergence_is_zero_at_identity_and_scale_invariant():
     )
 
 
-def test_is_divergence_and_gaussian_nll_differ_only_by_data_term():
+def test_is_divergence_matches_direct_formula():
     power = np.array([0.2, 1.0, 3.0])
     variance = np.array([0.4, 0.8, 2.0])
+    ratio = power / variance
 
-    difference = gaussian_variance_nll(power, variance) - is_divergence(
-        power, variance
+    assert is_divergence(power, variance) == pytest.approx(
+        np.sum(ratio - np.log(ratio) - 1.0)
     )
-
-    assert difference == pytest.approx(np.sum(np.log(power) + 1.0))
-    assert gaussian_variance_nll(
-        power, variance, reduction="mean"
-    ) == pytest.approx(np.mean(np.log(variance) + power / variance))
+    assert is_divergence(power, variance, reduction="mean") == pytest.approx(
+        np.mean(ratio - np.log(ratio) - 1.0)
+    )
 
 
 def test_is_divergence_remains_finite_for_extreme_small_ratio():
@@ -46,9 +42,9 @@ def test_is_divergence_remains_finite_for_extreme_small_ratio():
     assert np.all(np.isfinite(divergence))
 
 
-def test_objectives_broadcast_and_none_reduction_preserves_shape():
+def test_none_reduction_preserves_shape():
     power = np.array([[1.0, 2.0], [0.5, 0.25]])
-    variance = np.array([0.8, 1.5])
+    variance = np.array([[0.8, 1.5], [0.4, 0.5]])
 
     values = is_divergence(power, variance, reduction="none")
 
@@ -57,22 +53,20 @@ def test_objectives_broadcast_and_none_reduction_preserves_shape():
 
 
 @pytest.mark.parametrize(
-    ("function", "power", "variance"),
+    ("power", "variance"),
     [
-        (is_divergence, [0.0, 1.0], [1.0, 1.0]),
-        (is_divergence, [1.0, -1.0], [1.0, 1.0]),
-        (gaussian_variance_nll, [-1.0, 1.0], [1.0, 1.0]),
-        (gaussian_variance_nll, [0.0, 1.0], [0.0, 1.0]),
-        (is_divergence, [1.0, np.nan], [1.0, 1.0]),
+        ([0.0, 1.0], [1.0, 1.0]),
+        ([1.0, -1.0], [1.0, 1.0]),
+        ([1.0, np.nan], [1.0, 1.0]),
     ],
 )
-def test_objectives_reject_invalid_values(function, power, variance):
+def test_objectives_reject_invalid_values(power, variance):
     with pytest.raises(ValueError):
-        function(power, variance)
+        is_divergence(power, variance)
 
 
-def test_objectives_reject_incompatible_shapes_and_unknown_reduction():
-    with pytest.raises(ValueError, match="broadcast-compatible"):
+def test_objectives_reject_mismatched_shapes_and_unknown_reduction():
+    with pytest.raises(ValueError, match="same shape"):
         is_divergence(np.ones((2, 3)), np.ones((4, 3)))
     with pytest.raises(ValueError, match="reduction"):
         is_divergence(1.0, 1.0, reduction="median")

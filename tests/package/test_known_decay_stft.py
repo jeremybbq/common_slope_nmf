@@ -2,7 +2,7 @@ import numpy as np
 from scipy.stats import chi2
 
 from common_slope_nmf import (
-    exponential_atoms,
+    exponential_features,
     amplitude_sage,
     sample_complex_gaussian,
     t60_to_rate,
@@ -36,7 +36,7 @@ def test_known_decay_no_floor_matches_exact_inference():
     assert times_s[0] == 0.0
     assert times_s[-1] == 373 * HOP_SIZE_SAMPLES / SAMPLE_RATE_HZ
 
-    atom = exponential_atoms(times_s, t60_to_rate(T60_S))[0]
+    atom = exponential_features(times_s, t60_to_rate(T60_S))[0]
     variance = np.broadcast_to(
         DECAY_AMPLITUDE * atom, (N_BINS, times_s.size)
     )
@@ -80,7 +80,7 @@ def test_known_decay_no_floor_matches_exact_inference():
 
 def test_known_decay_with_floors_matches_fisher_sampling_scale():
     times_s = _frame_times()
-    atom = exponential_atoms(times_s, t60_to_rate(T60_S))[0]
+    atom = exponential_features(times_s, t60_to_rate(T60_S))[0]
     dictionary = np.vstack([atom, np.ones_like(atom)])
     no_floor_variance = np.broadcast_to(
         DECAY_AMPLITUDE * atom, (N_BINS, times_s.size)

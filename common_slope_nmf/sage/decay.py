@@ -9,7 +9,7 @@ from typing import Literal
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
-from ..is_objective import is_divergence
+from ..loss import is_divergence
 from ._util import (
     _broadcast_rate_bound,
     _check_controls,

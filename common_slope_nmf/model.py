@@ -46,8 +46,7 @@ def t60_to_rate(t60_s: ArrayLike) -> float | NDArray[np.float64]:
     Returns
     -------
     float or ndarray
-        Decay rates with the same shape as ``t60_s``. A scalar input returns a
-        scalar. The convention is ``rate = 6 log(10) / T60``.
+        Decay rates with the same shape as ``t60_s``. A scalar input returns a scalar. The convention is ``rate = 6 log(10) / T60``.
     """
 
     t60 = _positive_array("t60_s", t60_s)
@@ -61,14 +60,12 @@ def rate_to_t60(rate_per_s: ArrayLike) -> float | NDArray[np.float64]:
     Parameters
     ----------
     rate_per_s
-        Positive scalar or array of exponential energy-decay rates in
-        inverse seconds.
+        Positive scalar or array of exponential energy-decay rates in inverse seconds.
 
     Returns
     -------
     float or ndarray
-        Energy/power ``T60`` values with the same shape as ``rate_per_s``.
-        A scalar input returns a scalar.
+        Energy/power ``T60`` values with the same shape as ``rate_per_s``. A scalar input returns a scalar.
     """
 
     rate = _positive_array("rate_per_s", rate_per_s)
@@ -76,37 +73,34 @@ def rate_to_t60(rate_per_s: ArrayLike) -> float | NDArray[np.float64]:
     return float(t60) if t60.ndim == 0 else t60
 
 
-def exponential_atoms(
-    times_s: ArrayLike, rate_per_s: ArrayLike
+def exponential_features(
+    frame_time_s: ArrayLike, rate_per_s: ArrayLike
 ) -> NDArray[np.float64]:
-    """Construct unit-origin exponential energy-decay atoms.
+    """Construct unit-origin exponential energy-decay features.
 
     Parameters
     ----------
-    times_s
-        One-dimensional elapsed times in seconds, shape ``(N,)``. Values must
-        be finite and non-negative.
+    frame_time_s
+        One-dimensional time vector of STFT frame elapsed time in seconds, shape ``(N,)``. Values must be finite and non-negative. Frame zero is the decay origin.
     rate_per_s
-        Positive decay rates in inverse seconds, shape ``(..., K)``. A scalar
-        is interpreted as one component.
+        Positive decay rates in inverse seconds, shape ``(..., K)``. A scalar is interpreted as one component.
 
     Returns
     -------
     ndarray
-        Exponential atoms ``exp(-rate * time)``, shape ``(..., K, N)``. Every
-        atom equals one when its elapsed time is zero.
+        Exponential features ``exp(-rate * time)``, shape ``(..., K, N)``. Every feature equals one at frame time zero.
     """
 
-    times = _nonnegative_array("times_s", times_s)
-    if times.ndim != 1:
-        raise ValueError("times_s must be one-dimensional.")
+    frame_time_s = _nonnegative_array("frame_time_s", frame_time_s)
+    if frame_time_s.ndim != 1:
+        raise ValueError("frame_time_s must be one-dimensional.")
 
     rates = np.atleast_1d(_positive_array("rate_per_s", rate_per_s))
-    return np.exp(-rates[..., np.newaxis] * times)
+    return np.exp(-rates[..., np.newaxis] * frame_time_s)
 
 
 def exponential_variance(
-    times_s: ArrayLike,
+    frame_time_s: ArrayLike,
     rate_per_s: ArrayLike,
     amplitudes: ArrayLike,
     noise_floor: ArrayLike = 0.0,
@@ -115,30 +109,24 @@ def exponential_variance(
 
     Parameters
     ----------
-    times_s
-        Elapsed times in seconds, shape ``(N,)``.
+    frame_time_s
+        Time vector of STFT frame elapsed time in seconds, shape ``(N,)``. Frame zero is the decay origin.
     rate_per_s
-        Positive shared rates in inverse seconds, shape ``(..., K)``. For the
-        full model this is commonly ``(F, K)``.
+        Positive shared rates in inverse seconds, shape ``(..., K)``. For the full model this is commonly ``(F, K)``.
     amplitudes
-        Non-negative energy/variance amplitudes at ``times_s == 0``, with a
-        shape broadcastable with ``rate_per_s``. This is commonly
-        ``(R, F, K)``.
+        Non-negative energy/variance amplitudes at ``frame_time_s == 0``, with a shape broadcastable with ``rate_per_s``. This is commonly ``(R, F, K)``.
     noise_floor
-        Non-negative time-invariant variance, broadcastable to the parameter
-        batch shape after the component axis is removed. This is commonly
-        ``(R, F)``.
+        Non-negative time-invariant variance, broadcastable to the parameter batch shape after the component axis is removed. This is commonly ``(R, F)``.
 
     Returns
     -------
     ndarray
-        Total variance, shape ``broadcast(rate_per_s, amplitudes)[:-1] + (N,)``.
-        A scalar rate and scalar amplitude produce shape ``(N,)``.
+        Total variance, shape ``broadcast(rate_per_s, amplitudes)[:-1] + (N,)``. A scalar rate and scalar amplitude produce shape ``(N,)``.
     """
 
-    times = _nonnegative_array("times_s", times_s)
-    if times.ndim != 1:
-        raise ValueError("times_s must be one-dimensional.")
+    frame_time_s = _nonnegative_array("frame_time_s", frame_time_s)
+    if frame_time_s.ndim != 1:
+        raise ValueError("frame_time_s must be one-dimensional.")
 
     rates = np.atleast_1d(_positive_array("rate_per_s", rate_per_s))
     weights = np.atleast_1d(_nonnegative_array("amplitudes", amplitudes))
@@ -151,7 +139,7 @@ def exponential_variance(
         ) from exc
 
     components = weights[..., np.newaxis] * np.exp(
-        -rates[..., np.newaxis] * times
+        -rates[..., np.newaxis] * frame_time_s
     )
     variance = np.sum(components, axis=-2)
 

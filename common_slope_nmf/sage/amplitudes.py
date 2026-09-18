@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
-from ..is_objective import is_divergence
+from ..loss import is_divergence
 from ._util import (
     _check_controls,
     _has_converged,

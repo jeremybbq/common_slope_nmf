@@ -20,7 +20,7 @@ import numpy as np
 
 from common_slope_nmf import (
     amplitude_sage,
-    exponential_atoms,
+    exponential_features,
     sample_complex_gaussian,
     t60_to_rate,
 )
@@ -150,7 +150,7 @@ def fixed_rate_dictionary(times_s: np.ndarray) -> np.ndarray:
         raise ValueError("times_s must have non-empty shape (N,).")
     if not np.all(np.isfinite(times)) or np.any(times < 0.0):
         raise ValueError("times_s must contain finite non-negative values.")
-    decays = exponential_atoms(times, t60_to_rate(TRUE_T60_S))
+    decays = exponential_features(times, t60_to_rate(TRUE_T60_S))
     return np.vstack((decays, np.ones(times.size, dtype=np.float64)))
 
 

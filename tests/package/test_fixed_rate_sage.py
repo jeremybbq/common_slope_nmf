@@ -4,8 +4,7 @@ from scipy.optimize import minimize
 
 from common_slope_nmf import (
     amplitude_sage,
-    exponential_atoms,
-    gaussian_variance_nll,
+    exponential_features,
     is_divergence,
     sample_power,
     t60_to_rate,
@@ -13,7 +12,7 @@ from common_slope_nmf import (
 
 
 def _two_decay_dictionary(times_s):
-    decay_atoms = exponential_atoms(
+    decay_atoms = exponential_features(
         times_s, t60_to_rate(np.array([0.25, 0.8]))
     )
     return np.vstack([decay_atoms, np.ones((1, times_s.size))])
@@ -21,7 +20,7 @@ def _two_decay_dictionary(times_s):
 
 def test_single_component_amplitudes_are_exact_after_one_sweep():
     times_s = np.arange(121, dtype=np.float64) * 0.01
-    dictionary = exponential_atoms(times_s, t60_to_rate(0.6))
+    dictionary = exponential_features(times_s, t60_to_rate(0.6))
     true_amplitudes = np.array([[0.2], [0.5], [1.0], [2.0]])
     power = true_amplitudes @ dictionary
 
@@ -90,7 +89,7 @@ def test_difficult_cases_remain_finite_and_monotone(
     times_s = np.arange(0.0, end_s + 0.005, 0.01)
     dictionary = np.vstack(
         [
-            exponential_atoms(times_s, t60_to_rate(t60_s)),
+            exponential_features(times_s, t60_to_rate(t60_s)),
             np.ones((1, times_s.size)),
         ]
     )
@@ -121,7 +120,7 @@ def test_seeded_stochastic_fit_matches_independent_scipy_reference():
         derivative_variance = 1.0 / variance - power[0] / variance**2
         gradient = amplitudes * (dictionary @ derivative_variance)
         return (
-            gaussian_variance_nll(power[0], variance),
+            is_divergence(power[0], variance),
             gradient,
         )
 
