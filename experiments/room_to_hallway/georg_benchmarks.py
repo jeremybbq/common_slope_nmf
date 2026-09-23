@@ -1,11 +1,6 @@
 """Run fixed-K=2 DecayFitNet and CommonSlopeAnalysis room benchmarks.
 
-The four raw v1.3 Meeting Room to Hallway SOFA files are analyzed in six
-octave-like bands. DecayFitNet supplies independent two-slope parameters for
-every RIR. Georg Götz's common-slope procedure then clusters those decay times
-into two shared values per band and refits per-RIR amplitudes on Schroeder EDCs.
-The external DecayFitNet ONNX model is loaded from its own checkout and is not
-copied into this repository.
+The four raw v1.3 Meeting Room to Hallway SOFA files are analyzed in six octave bands. DecayFitNet's Python toolbox, loaded from an external checkout, filters each RIR, forms the Schroeder EDC, and estimates two slopes. Georg Götz's common-slope procedure then clusters those decay times into two shared values per band. The checkout is not copied into this repository.
 """
 
 
@@ -13,18 +8,15 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import sys
+import types
 from pathlib import Path
 
 import numpy as np
 
-from common_slope_nmf.georg_baselines import (
-    DECAYFITNET_OUTPUT_SIZE,
-    GEORG_BANDWIDTH_FACTOR,
-    ExternalDecayFitNet,
-    band_energy_decay_curves,
+from common_slope_nmf.baseline import (
     determine_common_decay_times,
     edc_to_equivalent_rir_power_amplitudes,
-    fit_common_slope_edcs,
 )
 from experiments._run_output import create_run_output_dir
 from experiments.datasets import load_sofa_channel
@@ -48,7 +40,14 @@ FILTER_TAIL_DISCARD_FRACTION = 0.005
 
 DECAYFITNET_EDC_TAIL_DISCARD_FRACTION = 0.05
 
-DEFAULT_MODEL_DIR = Path.home() / "Documents" / "DecayFitNet" / "model"
+DECAYFITNET_OUTPUT_SIZE = 100
+
+# FilterByOctaves in the DecayFitNet Python toolbox.
+BANDWIDTH_FACTOR = float(np.sqrt(2.0))
+
+DEFAULT_DECAYFITNET_REPO = Path.home() / "Documents" / "DecayFitNet"
+
+_TOOLBOX_PACKAGE = "decayfitnet_checkout"
 
 PARTIAL_KEYS = (
     "decayfitnet_t60_s",
@@ -60,14 +59,6 @@ PARTIAL_KEYS = (
     "decayfitnet_edc_normalization_energy",
     "decayfitnet_mse_db2",
     "common_slope_t60_s",
-    "common_slope_amplitudes_normalized_edc",
-    "common_slope_amplitudes_absolute_edc_energy",
-    "common_slope_equivalent_rir_power_amplitudes",
-    "common_slope_noise_normalized_edc_origin",
-    "common_slope_noise_absolute_edc_energy",
-    "common_slope_equivalent_noise_power_per_sample",
-    "common_slope_mse_db2",
-    "common_slope_fit_success",
     "common_slope_cluster_sizes",
 )
 
@@ -128,69 +119,128 @@ def load_room_transition_omni(
     }
 
 
-def decayfitnet_mse_db2(
-    edcs: np.ndarray,
+def open_decayfitnet(
+    repo_dir: str | Path,
+    *,
+    n_slopes: int,
+    sample_rate_hz: float,
+    filter_frequencies: list[float],
+):
+    """Load ``DecayFitNetToolbox`` from a DecayFitNet repository checkout.
+
+    ``repo_dir`` is the repository root. Filtering and Schroeder integration come from ``python/toolbox``. The ONNX network and input transform come from ``model/``.
+    """
+
+    repo = Path(repo_dir).expanduser().resolve()
+    toolbox_dir = repo / "python" / "toolbox"
+    model_dir = repo / "model"
+    if not (toolbox_dir / "DecayFitNetToolbox.py").is_file():
+        raise FileNotFoundError(
+            f"{repo} has no python/toolbox/DecayFitNetToolbox.py."
+        )
+    if not model_dir.is_dir():
+        raise FileNotFoundError(f"{repo} has no model directory.")
+    existing = sys.modules.get(_TOOLBOX_PACKAGE)
+    if existing is None:
+        package = types.ModuleType(_TOOLBOX_PACKAGE)
+        package.__path__ = [str(toolbox_dir)]
+        package.__package__ = _TOOLBOX_PACKAGE
+        sys.modules[_TOOLBOX_PACKAGE] = package
+    elif Path(existing.__path__[0]).resolve() != toolbox_dir:
+        raise RuntimeError(
+            f"{_TOOLBOX_PACKAGE} is already loaded from {existing.__path__[0]}."
+        )
+    try:
+        from decayfitnet_checkout.DecayFitNetToolbox import DecayFitNetToolbox
+    except ModuleNotFoundError as exc:
+        if exc.name in {"torch", "onnx", "onnxruntime"}:
+            raise ImportError(
+                "DecayFitNet's Python toolbox requires torch, onnx, and onnxruntime."
+            ) from exc
+        raise
+
+    toolbox = DecayFitNetToolbox(
+        n_slopes=n_slopes,
+        sample_rate=int(sample_rate_hz),
+        filter_frequencies=[float(frequency) for frequency in filter_frequencies],
+        model_dir=model_dir,
+    )
+    return toolbox, model_dir
+
+
+def _decayfitnet_mse_db2(
+    decayfitnet,
+    rirs: np.ndarray,
     t60_s: np.ndarray,
     amplitudes_normalized_edc: np.ndarray,
     noise_normalized_per_sample: np.ndarray,
     sample_rate_hz: float,
-) -> np.ndarray:
-    """Return per-RIR DecayFitNet dB-domain EDC mean-squared errors.
+) -> tuple[int, np.ndarray]:
+    """Compare each Schroeder EDC with DecayFitNet's reconstructed EDC.
 
-    The input EDCs have shape ``(R,L)``. Times and amplitudes have shape
-    ``(R,K)``; noise has shape ``(R,)``. The comparison uses 100 uniformly
-    spaced samples and excludes the final five, matching the benchmark fit.
+    The comparison uses Georg's ``decay_model`` and drops the final 5 percent, matching the DecayFitNet demo. Returns the Schroeder length and one mean-squared dB residual per RIR.
     """
 
-    curves = np.asarray(edcs, dtype=np.float64)
-    t60 = np.asarray(t60_s, dtype=np.float64)
-    amplitudes = np.asarray(amplitudes_normalized_edc, dtype=np.float64)
-    noise = np.asarray(noise_normalized_per_sample, dtype=np.float64)
-    if curves.ndim != 2 or t60.shape != amplitudes.shape:
-        raise ValueError("EDCs must be (R,L), with T60/amplitudes shaped (R,K).")
-    if t60.shape[0] != curves.shape[0] or noise.shape != (curves.shape[0],):
-        raise ValueError("DecayFitNet parameter RIR axes do not match EDCs.")
-    sample_indices = np.linspace(
-        0.0, curves.shape[1] - 1.0, DECAYFITNET_OUTPUT_SIZE
+    import torch
+    from decayfitnet_checkout.core import decay_model, discard_last_n_percent
+
+    true_edc, _ = decayfitnet._preprocess.schroeder(
+        torch.as_tensor(rirs), analyse_full_rir=True
     )
-    times_s = sample_indices / sample_rate_hz
-    exponentials = np.exp(
-        -np.log(1e6)
-        * times_s[np.newaxis, np.newaxis, :]
-        / t60[:, :, np.newaxis]
+    n_samples = int(true_edc.shape[-1])
+    time_axis = torch.linspace(0, n_samples - 1, n_samples) / float(sample_rate_hz)
+    fitted = decay_model(
+        torch.as_tensor(t60_s).clone(),
+        torch.as_tensor(amplitudes_normalized_edc).clone(),
+        torch.as_tensor(noise_normalized_per_sample).reshape(-1, 1),
+        time_axis,
+        compensate_uli=True,
+        backend="torch",
     )
-    exponentials -= exponentials[:, :, -1:]
-    fitted = np.sum(amplitudes[:, :, np.newaxis] * exponentials, axis=1)
-    fitted += noise[:, np.newaxis] * (
-        curves.shape[1] - sample_indices[np.newaxis, :]
-    )
-    normalized = curves / curves[:, :1]
-    source_indices = np.arange(curves.shape[1], dtype=np.float64)
-    observed = np.stack(
-        [np.interp(sample_indices, source_indices, row) for row in normalized]
-    )
-    epsilon = np.finfo(np.float64).tiny
-    residual_db = 10.0 * np.log10(np.maximum(fitted[:, :95], epsilon))
-    residual_db -= 10.0 * np.log10(np.maximum(observed[:, :95], epsilon))
-    return np.mean(residual_db**2, axis=1)
+    observed = discard_last_n_percent(true_edc, 5)
+    predicted = discard_last_n_percent(fitted, 5)
+    residual_db = 10.0 * torch.log10(observed) - 10.0 * torch.log10(predicted)
+    mse = torch.mean(residual_db.square(), dim=-1).reshape(-1)
+    return n_samples, mse.detach().cpu().numpy()
 
 
 def run_one_band(
     rirs: np.ndarray,
     sample_rate_hz: float,
     band_hz: float,
-    decayfitnet: ExternalDecayFitNet,
-    *,
-    n_jobs: int,
+    decayfitnet,
 ) -> dict[str, np.ndarray]:
     """Run both Georg baselines for one band and return NPZ-ready arrays."""
 
-    print(f"{band_hz:g} Hz: filtering and integrating EDCs", flush=True)
-    edcs = band_energy_decay_curves(rirs, sample_rate_hz, band_hz)
+    if rirs.ndim != 2 or rirs.shape[0] > rirs.shape[1]:
+        raise ValueError(
+            "DecayFitNet expects RIRs shaped (receivers, samples) with more samples than receivers. "
+            f"Got {getattr(rirs, 'shape', None)}."
+        )
     print(f"{band_hz:g} Hz: DecayFitNet K={N_SLOPES}", flush=True)
-    independent = decayfitnet.estimate_edcs(edcs, sample_rate_hz)
-    common_t60_s, clusters = determine_common_decay_times(
-        independent.t60_s,
+    decayfitnet.set_filter_frequencies([float(band_hz)])
+    parameters, norm_vals = decayfitnet.estimate_parameters(
+        rirs, analyse_full_rir=True
+    )
+    t60_s = np.asarray(parameters[0], dtype=np.float64)
+    amplitudes = np.asarray(parameters[1], dtype=np.float64)
+    noise = np.asarray(parameters[2], dtype=np.float64).reshape(rirs.shape[0])
+    normalization = np.asarray(norm_vals, dtype=np.float64).reshape(rirs.shape[0])
+    if t60_s.shape != (rirs.shape[0], N_SLOPES) or amplitudes.shape != t60_s.shape:
+        raise ValueError(
+            "DecayFitNet returned unexpected parameter shapes "
+            f"{t60_s.shape} and {amplitudes.shape}."
+        )
+    n_edc_samples, mse_db2 = _decayfitnet_mse_db2(
+        decayfitnet,
+        rirs,
+        t60_s,
+        amplitudes,
+        noise,
+        sample_rate_hz,
+    )
+    common_t60_s, cluster_sizes = determine_common_decay_times(
+        t60_s,
         N_SLOPES,
         histogram_resolution_s=HISTOGRAM_RESOLUTION_S,
         seed=CLUSTER_SEED,
@@ -200,78 +250,26 @@ def run_one_band(
         + ", ".join(f"{value:.3f} s" for value in common_t60_s),
         flush=True,
     )
-    common_fit = fit_common_slope_edcs(
-        edcs,
-        common_t60_s,
-        sample_rate_hz,
-        n_jobs=n_jobs,
-    )
 
-    normalization = independent.edc_normalization_energy
-    independent_absolute = (
-        independent.amplitudes_normalized_edc * normalization[:, np.newaxis]
-    )
-    common_t60_per_rir = np.broadcast_to(
-        common_t60_s, common_fit.amplitudes_absolute_edc_energy.shape
-    )
-    result = {
+    absolute = amplitudes * normalization[:, np.newaxis]
+    return {
         "band_center_hz": np.asarray(band_hz),
-        "n_edc_samples": np.asarray(edcs.shape[1]),
-        "decayfitnet_t60_s": independent.t60_s,
-        "decayfitnet_amplitudes_normalized_edc": (
-            independent.amplitudes_normalized_edc
-        ),
-        "decayfitnet_amplitudes_absolute_edc_energy": independent_absolute,
+        "n_edc_samples": np.asarray(n_edc_samples),
+        "decayfitnet_t60_s": t60_s,
+        "decayfitnet_amplitudes_normalized_edc": amplitudes,
+        "decayfitnet_amplitudes_absolute_edc_energy": absolute,
         "decayfitnet_equivalent_rir_power_amplitudes": (
             edc_to_equivalent_rir_power_amplitudes(
-                independent_absolute, independent.t60_s, sample_rate_hz
+                absolute, t60_s, sample_rate_hz
             )
         ),
-        "decayfitnet_noise_normalized_per_sample": (
-            independent.noise_normalized_per_sample
-        ),
-        "decayfitnet_noise_absolute_per_sample": (
-            independent.noise_normalized_per_sample * normalization
-        ),
+        "decayfitnet_noise_normalized_per_sample": noise,
+        "decayfitnet_noise_absolute_per_sample": noise * normalization,
         "decayfitnet_edc_normalization_energy": normalization,
-        "decayfitnet_mse_db2": decayfitnet_mse_db2(
-            edcs,
-            independent.t60_s,
-            independent.amplitudes_normalized_edc,
-            independent.noise_normalized_per_sample,
-            sample_rate_hz,
-        ),
+        "decayfitnet_mse_db2": mse_db2,
         "common_slope_t60_s": common_t60_s,
-        "common_slope_amplitudes_normalized_edc": (
-            common_fit.amplitudes_normalized_edc
-        ),
-        "common_slope_amplitudes_absolute_edc_energy": (
-            common_fit.amplitudes_absolute_edc_energy
-        ),
-        "common_slope_equivalent_rir_power_amplitudes": (
-            edc_to_equivalent_rir_power_amplitudes(
-                common_fit.amplitudes_absolute_edc_energy,
-                common_t60_per_rir,
-                sample_rate_hz,
-            )
-        ),
-        "common_slope_noise_normalized_edc_origin": (
-            common_fit.noise_normalized_edc_origin
-        ),
-        "common_slope_noise_absolute_edc_energy": (
-            common_fit.noise_absolute_edc_energy
-        ),
-        "common_slope_equivalent_noise_power_per_sample": (
-            common_fit.noise_absolute_edc_energy / edcs.shape[1]
-        ),
-        "common_slope_mse_db2": common_fit.mse_db2,
-        "common_slope_fit_success": common_fit.success,
-        "common_slope_cluster_sizes": np.asarray(
-            [cluster.size for cluster in clusters], dtype=np.int64
-        ),
+        "common_slope_cluster_sizes": cluster_sizes,
     }
-    del edcs
-    return result
 
 
 def combine_band_partials(
@@ -320,6 +318,7 @@ def save_combined_results(
     output_dir: Path,
     band_results: dict[str, np.ndarray],
     dataset: dict[str, np.ndarray],
+    repo_dir: Path,
     model_dir: Path,
 ) -> Path:
     """Save combined estimates, amplitude conventions, and provenance."""
@@ -340,7 +339,7 @@ def save_combined_results(
         receiver_channel_index=np.asarray(0),
         n_slopes=np.asarray(N_SLOPES),
         filter_order=np.asarray(FILTER_ORDER),
-        bandwidth_factor=np.asarray(GEORG_BANDWIDTH_FACTOR),
+        bandwidth_factor=np.asarray(BANDWIDTH_FACTOR),
         analyze_full_rir=np.asarray(True),
         filter_tail_discard_fraction=np.asarray(
             FILTER_TAIL_DISCARD_FRACTION
@@ -353,15 +352,13 @@ def save_combined_results(
             HISTOGRAM_RESOLUTION_S
         ),
         common_slope_cluster_seed=np.asarray(CLUSTER_SEED),
+        decayfitnet_repo_path=np.asarray(str(repo_dir.resolve())),
         decayfitnet_model_path=np.asarray(str(model_path.resolve())),
         decayfitnet_model_sha256=np.asarray(_sha256(model_path)),
         decayfitnet_transform_path=np.asarray(str(transform_path.resolve())),
         decayfitnet_transform_sha256=np.asarray(_sha256(transform_path)),
         decayfitnet_amplitude_convention=np.asarray(
             "normalized Schroeder-EDC exponential coefficient"
-        ),
-        common_slope_amplitude_convention=np.asarray(
-            "log-EDC-fit exponential coefficient"
         ),
         equivalent_rir_power_amplitude_note=np.asarray(
             "EDC coefficient times 1-exp(-6*ln(10)/(fs*T60)); "
@@ -374,9 +371,12 @@ def save_combined_results(
 def _arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset-dir", type=Path, default=DATASET_DIR)
-    parser.add_argument("--model-dir", type=Path, default=DEFAULT_MODEL_DIR)
+    parser.add_argument(
+        "--decayfitnet-repo",
+        type=Path,
+        default=DEFAULT_DECAYFITNET_REPO,
+    )
     parser.add_argument("--output-root", type=Path, default=Path("output"))
-    parser.add_argument("--jobs", type=int, default=8)
     parser.add_argument(
         "--bands",
         nargs="+",
@@ -384,14 +384,12 @@ def _arguments() -> argparse.Namespace:
         default=BAND_CENTERS_HZ.tolist(),
     )
     args = parser.parse_args()
-    if args.jobs <= 0:
-        parser.error("--jobs must be positive")
     bands = np.asarray(args.bands, dtype=np.float64)
     if np.any(~np.isfinite(bands)) or np.any(bands <= 0.0):
         parser.error("--bands must contain finite positive frequencies")
     if np.any(np.diff(bands) <= 0.0):
         parser.error("--bands must be strictly increasing")
-    if bands[-1] * GEORG_BANDWIDTH_FACTOR >= SAMPLE_RATE_HZ / 2.0:
+    if bands[-1] * BANDWIDTH_FACTOR >= SAMPLE_RATE_HZ / 2.0:
         parser.error("the highest band edge must be below Nyquist")
     return args
 
@@ -403,7 +401,12 @@ def main() -> None:
     output_dir = create_run_output_dir(args.output_root)
     dataset = load_room_transition_omni(args.dataset_dir)
     rirs = dataset.pop("rirs")
-    decayfitnet = ExternalDecayFitNet(args.model_dir, n_slopes=N_SLOPES)
+    decayfitnet, model_dir = open_decayfitnet(
+        args.decayfitnet_repo,
+        n_slopes=N_SLOPES,
+        sample_rate_hz=SAMPLE_RATE_HZ,
+        filter_frequencies=[float(band_hz) for band_hz in args.bands],
+    )
     partial_paths: list[Path] = []
     for band_hz in args.bands:
         result = run_one_band(
@@ -411,7 +414,6 @@ def main() -> None:
             SAMPLE_RATE_HZ,
             float(band_hz),
             decayfitnet,
-            n_jobs=args.jobs,
         )
         partial_path = output_dir / f"georg_benchmark_{int(band_hz):05d}_hz.npz"
         np.savez_compressed(partial_path, **result)
@@ -419,7 +421,11 @@ def main() -> None:
         print(f"saved checkpoint {partial_path.name}", flush=True)
     combined = combine_band_partials(partial_paths)
     output_path = save_combined_results(
-        output_dir, combined, dataset, args.model_dir.resolve()
+        output_dir,
+        combined,
+        dataset,
+        Path(args.decayfitnet_repo).expanduser().resolve(),
+        model_dir,
     )
     print(f"combined benchmark={output_path}", flush=True)
 

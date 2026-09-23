@@ -1,13 +1,14 @@
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from experiments.room_to_hallway.georg_benchmarks import (
     BAND_CENTERS_HZ,
     N_SLOPES,
     PARTIAL_KEYS,
     combine_band_partials,
-    decayfitnet_mse_db2,
+    open_decayfitnet,
 )
 from experiments.room_to_hallway.plot_georg_benchmarks import plot_t60_comparison
 
@@ -20,27 +21,14 @@ def test_benchmark_uses_agreed_fixed_k2_six_bands():
     )
 
 
-def test_decayfitnet_mse_is_near_zero_for_matching_decay():
-    sample_rate_hz = 200.0
-    length = 301
-    t60_s = np.array([[0.5, 1.5]])
-    amplitudes = np.array([[0.7, 0.3]])
-    noise = np.array([0.0])
-    times_s = np.arange(length) / sample_rate_hz
-    exponentials = np.exp(
-        -np.log(1e6) * times_s[np.newaxis, :] / t60_s[0, :, np.newaxis]
-    )
-    exponentials -= exponentials[:, -1:]
-    edcs = np.sum(amplitudes[0, :, np.newaxis] * exponentials, axis=0)[
-        np.newaxis, :
-    ]
-
-    mse = decayfitnet_mse_db2(
-        edcs, t60_s, amplitudes, noise, sample_rate_hz
-    )
-
-    assert mse.shape == (1,)
-    assert mse[0] < 2e-6
+def test_open_decayfitnet_requires_a_checkout(tmp_path: Path):
+    with pytest.raises(FileNotFoundError, match="DecayFitNetToolbox.py"):
+        open_decayfitnet(
+            tmp_path,
+            n_slopes=2,
+            sample_rate_hz=48_000.0,
+            filter_frequencies=[1_000.0],
+        )
 
 
 def test_band_checkpoints_stack_receiver_and_shared_axes(tmp_path: Path):
@@ -65,7 +53,7 @@ def test_band_checkpoints_stack_receiver_and_shared_axes(tmp_path: Path):
 
     assert combined["decayfitnet_t60_s"].shape == (3, 2, 2)
     assert combined["common_slope_t60_s"].shape == (2, 2)
-    assert combined["common_slope_mse_db2"].shape == (3, 2)
+    assert combined["common_slope_cluster_sizes"].shape == (2, 2)
     np.testing.assert_array_equal(combined["band_centers_hz"], [250.0, 500.0])
 
 
