@@ -1,4 +1,4 @@
-# common_slope_nmf
+# Common-slope joint decay and amplitude estimation using parameterized nonnegative matrix factorization
 
 Research package for estimating multiple, frequency-dependent room-acoustic decay
 processes from sets of room impulse responses (RIRs). The target method is a
