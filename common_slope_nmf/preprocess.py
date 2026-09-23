@@ -1,33 +1,11 @@
-"""Data-derived summaries used to initialize decay estimators."""
+"""Data-derived summaries used to initialize estimators."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from numbers import Integral
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
-
-
-@dataclass(frozen=True)
-class DecayFit:
-    """Result of a pooled coarse log-power decay fit.
-
-    Attributes
-    ----------
-    rate_per_s
-        Fitted positive energy-decay rates in inverse seconds, shape ``(F,)``.
-    r_squared
-        Within-RIR coefficient of determination, shape ``(F,)``. This is a
-        regression diagnostic, not a goodness-of-fit test for the multislope
-        model.
-    frame_mask
-        Common frames used across all RIRs at each frequency, shape ``(F,N)``.
-    """
-
-    rate_per_s: NDArray[np.float64]
-    r_squared: NDArray[np.float64]
-    frame_mask: NDArray[np.bool_]
 
 
 def _power_array(observed_power: ArrayLike) -> NDArray[np.float64]:
@@ -96,9 +74,7 @@ def tail_power(
 
     Notes
     -----
-    Residual long-decay energy can bias this initialization upward. The value
-    is intended as an estimator starting point rather than an unbiased floor
-    estimate under arbitrary observation lengths.
+    Residual long-decay energy can bias this initialization upward. The value is intended as an estimator starting point rather than an unbiased floor estimate under arbitrary observation lengths.
     """
 
     power = _power_array(observed_power)
@@ -106,64 +82,57 @@ def tail_power(
     return np.mean(power[:, :, -count:], axis=2)
 
 
-def fit_coarse_decay(
+def fit_linear_decay(
     observed_power: ArrayLike,
-    times_s: ArrayLike,
+    frame_time_s: ArrayLike,
     *,
     noise_floor: ArrayLike | None = None,
     n_tail_frames: int = 0,
     floor_margin_db: float | None = None,
     min_frames: int = 3,
-) -> DecayFit:
+) -> NDArray[np.float64]:
     """Fit one pooled log-power decay rate per frequency.
 
     Parameters
     ----------
     observed_power
         Positive observed power, shape ``(R,F,N)``.
-    times_s
-        Non-negative elapsed times in seconds, shape ``(N,)``.
+    frame_time_s
+        Time vector of STFT frame elapsed time in seconds, shape ``(N,)``. Frame zero is the decay origin.
     noise_floor
-        Optional positive floor estimate, shape ``(R,F)``. It is used only to
-        choose a common regression frame mask and is not subtracted from the
-        instantaneous powers.
+        Optional positive floor estimate, shape ``(R,F)``. It is used only to choose a common regression frame mask and is not subtracted from the instantaneous powers.
     n_tail_frames
         Number of final frames excluded from every regression.
     floor_margin_db
-        Optional non-negative power margin above the across-RIR mean floor.
-        Frames below this margin are excluded. Requires ``noise_floor``.
+        Optional non-negative power margin above the across-RIR mean floor. Frames below this margin are excluded. Requires ``noise_floor``.
     min_frames
         Minimum number of common frames required at every frequency.
 
     Returns
     -------
-    DecayFit
-        Positive coarse rates in inverse seconds and regression diagnostics.
+    ndarray
+        Positive energy-decay rates in inverse seconds, shape ``(F,)``.
 
     Notes
     -----
-    A single line is fit to all RIR log powers at each frequency. Different
-    RIR intercepts do not bias the slope because every RIR uses the same time
-    samples: each intercept multiplies a centered-time vector whose sum is
-    zero. The returned ``r_squared`` removes each RIR mean before evaluating
-    residuals so amplitude differences do not dominate that diagnostic.
+    A single line is fit to all RIR log powers at each frequency. Different RIR intercepts do not bias the slope because every RIR uses the same frame times: each intercept multiplies a centered-time vector whose sum is zero.
     """
 
     power = _power_array(observed_power)
-    times = np.asarray(times_s, dtype=np.float64)
-    if times.ndim != 1 or times.shape[0] != power.shape[2]:
-        raise ValueError("times_s must have shape (N,) matching observed_power.")
-    if not np.all(np.isfinite(times)) or np.any(times < 0.0):
-        raise ValueError("times_s must contain finite non-negative values.")
-    if np.ptp(times) <= 0.0:
-        raise ValueError("times_s must contain variation.")
+    frame_time_s = np.asarray(frame_time_s, dtype=np.float64)
+    if frame_time_s.ndim != 1 or frame_time_s.shape[0] != power.shape[2]:
+        raise ValueError("frame_time_s must have shape (N,) matching observed_power.")
+    if not np.all(np.isfinite(frame_time_s)) or np.any(frame_time_s < 0.0):
+        raise ValueError("frame_time_s must contain finite non-negative values.")
+    if np.ptp(frame_time_s) <= 0.0:
+        raise ValueError("frame_time_s must contain variation.")
     if isinstance(n_tail_frames, bool) or not isinstance(n_tail_frames, Integral):
         raise TypeError("n_tail_frames must be an integer.")
-    if n_tail_frames < 0 or n_tail_frames >= times.size:
+    if n_tail_frames < 0 or n_tail_frames >= frame_time_s.size:
         raise ValueError(
             "n_tail_frames must be non-negative and below the frame count."
         )
-    min_frames = _positive_frame_count("min_frames", min_frames, times.size)
+    min_frames = _positive_frame_count("min_frames", min_frames, frame_time_s.size)
     if min_frames < 2:
         raise ValueError("min_frames must be at least 2.")
     if floor_margin_db is not None:
@@ -189,7 +158,6 @@ def fit_coarse_decay(
             frame_mask &= mean_power > mean_floor[:, np.newaxis] * floor_ratio
 
     rate_per_s = np.empty(n_frequencies, dtype=np.float64)
-    r_squared = np.empty(n_frequencies, dtype=np.float64)
     for frequency_index in range(n_frequencies):
         mask = frame_mask[frequency_index]
         if np.count_nonzero(mask) < min_frames:
@@ -197,8 +165,8 @@ def fit_coarse_decay(
                 "too few regression frames at frequency index "
                 f"{frequency_index}."
             )
-        selected_times = times[mask]
-        centered_times = selected_times - np.mean(selected_times)
+        selected_frame_time_s = frame_time_s[mask]
+        centered_times = selected_frame_time_s - np.mean(selected_frame_time_s)
         denominator = n_rirs * np.sum(centered_times**2)
         if denominator <= 0.0:
             raise ValueError("selected regression times must contain variation.")
@@ -211,18 +179,4 @@ def fit_coarse_decay(
             )
         rate_per_s[frequency_index] = -slope
 
-        centered_log_power = log_power - np.mean(
-            log_power, axis=1, keepdims=True
-        )
-        residual = centered_log_power - slope * centered_times
-        residual_sum = np.sum(residual**2)
-        total_sum = np.sum(centered_log_power**2)
-        r_squared[frequency_index] = (
-            1.0 - residual_sum / total_sum if total_sum > 0.0 else np.nan
-        )
-
-    return DecayFit(
-        rate_per_s=rate_per_s,
-        r_squared=r_squared,
-        frame_mask=frame_mask,
-    )
+    return rate_per_s

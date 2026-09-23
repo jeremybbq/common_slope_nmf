@@ -18,10 +18,10 @@ dependencies = [
 [project.optional-dependencies]
 test = ["pytest>=7.0"]
 experiments = ["h5py>=3.7", "matplotlib>=3.7"]
-decayfitnet = ["onnxruntime>=1.16"]
+decayfitnet = ["onnx>=1.15", "onnxruntime>=1.16", "torch>=2.0"]
 
-[tool.setuptools]
-packages = ["common_slope_nmf"]
+[tool.setuptools.packages.find]
+include = ["common_slope_nmf*"]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]

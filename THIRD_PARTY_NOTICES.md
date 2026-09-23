@@ -1,11 +1,12 @@
 # Third-party notices
 
-`common_slope_nmf/georg_baselines.py` adapts the preprocessing, common-decay
-clustering, and log-EDC amplitude-fitting procedure from Georg Götz's
-[DecayFitNet](https://github.com/georg-goetz/DecayFitNet) and
+`common_slope_nmf/baseline.py` adapts the common-decay clustering procedure
+from Georg Götz's
 [CommonSlopeAnalysis](https://github.com/georg-goetz/CommonSlopeAnalysis).
-The external DecayFitNet ONNX weights and input transforms are not included in
-this repository.
+The room-to-hallway benchmark calls filtering, Schroeder integration, and
+network inference from an external
+[DecayFitNet](https://github.com/georg-goetz/DecayFitNet) checkout. The ONNX
+weights and input transforms are not included in this repository.
 
 ## DecayFitNet
 
