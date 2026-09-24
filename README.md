@@ -1,4 +1,4 @@
-# Common-slope NMF
+# Common-slope joint decay and amplitude estimation using parameterized nonnegative matrix factorization
 
 Estimate shared room-decay times, and how strong each decay is in every recording, from room impulse responses (RIRs).
 
