@@ -118,12 +118,24 @@ python -m experiments.room_to_hallway.plot_omni --results output/RUN
 baselines. Dataset preparation and external model requirements are documented in
 [docs/EXPERIMENTS.md](docs/EXPERIMENTS.md).
 
-Install the numerical package and optional experiment/test dependencies:
+Install the numerical package from PyPI:
+
+```bash
+python -m pip install common-slope-nmf
+```
+
+From a checkout, install the package with optional experiment and test dependencies:
 
 ```bash
 python -m pip install -e '.[experiments,test]'
 python -m pytest
 ```
+
+Publishing uses [PyPI Trusted Publishing](https://docs.pypi.org/trusted-publishers/).
+Register a pending publisher for project `common-slope-nmf`, owner `jeremybbq`,
+repository `common_slope_nmf`, workflow `publish.yml`, and environment `pypi`.
+Require a manual approval on that GitHub environment. Pushing a `v*` tag, such
+as `v0.1.0`, runs the tests, builds the sdist and wheel, and uploads them.
 
 ## Status
 

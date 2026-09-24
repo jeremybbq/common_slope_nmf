@@ -1,5 +1,12 @@
 """Research package for constrained multi-slope IS-NMF decay estimation."""
 
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    __version__ = version("common-slope-nmf")
+except PackageNotFoundError:
+    __version__ = "0.1.0"
+
 from .loss import is_divergence
 from .model import (
     exponential_features,
@@ -32,6 +39,7 @@ from .synth import (
 )
 
 __all__ = [
+    "__version__",
     "AmplitudeFit",
     "SynthData",
     "DecayFit",

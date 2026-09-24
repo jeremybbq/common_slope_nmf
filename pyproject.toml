@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -9,11 +9,36 @@ description = "Physically constrained IS-NMF/SAGE for common-slope room-acoustic
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [{ name = "Jeremy Bai" }]
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE", "THIRD_PARTY_NOTICES.md"]
+keywords = [
+    "acoustics",
+    "decay",
+    "nmf",
+    "reverberation",
+    "room-impulse-response",
+    "sage",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering",
+]
 dependencies = [
     "numpy>=1.23",
     "scipy>=1.10",
 ]
+
+[project.urls]
+Homepage = "https://github.com/jeremybbq/common_slope_nmf"
+Repository = "https://github.com/jeremybbq/common_slope_nmf"
+Issues = "https://github.com/jeremybbq/common_slope_nmf/issues"
+Changelog = "https://github.com/jeremybbq/common_slope_nmf/releases"
 
 [project.optional-dependencies]
 test = ["pytest>=7.0"]
