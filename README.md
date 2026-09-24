@@ -1,65 +1,40 @@
 # Common-slope joint decay and amplitude estimation using parameterized nonnegative matrix factorization
 
-Research package for estimating multiple, frequency-dependent room-acoustic decay
-processes from sets of room impulse responses (RIRs). The target method is a
-wideband-initialized, gridless IS-SAGE estimator: an Itakura-Saito (IS) likelihood
-with physically constrained exponential variance components.
+Estimate shared room-decay times, and how strong each decay is in every recording, from room impulse responses (RIRs).
 
-This is a successor to `multislope_linex`. That project estimates per-RIR component
-amplitudes for fixed common decay times using a LINEX loss. This project instead
-jointly estimates shared, frequency-dependent decay-rate trajectories and non-negative
-per-RIR amplitudes from STFT power.
+Several exponential decays share one set of rates across a set of RIRs. Each recording keeps its own amplitudes and noise floor. The fit uses an Itakura–Saito likelihood (the working complex-Gaussian variance model) and a SAGE optimizer.
 
-## Research model
+This follows `multislope_linex`, which estimated amplitudes for decay times that were already fixed. Here the shared, frequency-dependent rates and the non-negative amplitudes are estimated together.
 
-For RIR `r`, frequency bin `f`, and time frame `n`, observed STFT power is
-`Y[r,f,n] = |X[r,f,n]|^2`, with variance
+For RIR `r`, frequency `f`, and time frame `n`, the model variance is
 
 ```text
-V[r,f,n] = b[r,f] + sum_k a[r,f,k] exp(-lambda[f,k] tau[n]).
+V[r, f, n] = b[r, f] + sum_k a[r, f, k] * exp(-lambda[f, k] * tau[n])
 ```
 
-The rates `lambda[f,k]` are shared across RIRs; amplitudes `a[r,f,k]` and noise
-floors `b[r,f]` are non-negative and RIR-dependent. Fitting minimizes IS divergence,
-equivalently the working complex-Gaussian variance likelihood.
+`lambda` is shared. Amplitudes `a` and floors `b` stay non-negative and can differ by recording.
 
-## Documentation
+## Install
 
-The documentation map, model definition, algorithm plan, experimental protocol, and
-references are collected in [docs/INDEX.md](docs/INDEX.md). The forward model and synthetic
-generator are validated, together with supplied-atom amplitude estimation and
-independent-frequency joint decay-rate estimation.
+Python 3.10 or newer. From the repository root:
 
-## Repository layout
-
-```text
-common_slope_nmf/     Importable model, objective, synthesis, array DSP, and SAGE
-experiments/          Fit CLIs (NPZ/CSV), sibling plot scripts, and dataset readers
-tests/package/        Deterministic package tests
-tests/experiments/    Experiment, plot, and dataset-reader tests
-docs/                 Research specification and project index
+```bash
+python -m pip install -e '.[experiments,test]'
+python -m pytest
 ```
 
-Every experiment that writes artifacts creates a unique timestamped directory under
-`output/YYYY-MM-DD_HH-MM-SS-ffffff/`, keeping figures and numerical diagnostics from one
-run together.
+NumPy and SciPy are required. The `experiments` extra adds h5py and Matplotlib for dataset readers and plots. The `decayfitnet` extra is only for the external DecayFitNet benchmark.
 
-## Package workflow
+## Quick start
 
 ```python
 import numpy as np
+from common_slope_nmf import fit_decay, init_decay, sample_stft_power, t60_to_rate
 
-from common_slope_nmf import (
-    init_decay,
-    fit_decay,
-    sample_stft_power,
-    t60_to_rate,
-)
-
-frame_time_s = np.arange(374) * 128 / 24_000
+times = np.arange(256) * 128 / 24_000  # 128-sample hop at 24 kHz
 data = sample_stft_power(
-    frame_time_s,
-    n_rirs=512,
+    times,
+    n_rirs=64,
     n_frequencies=1,
     n_components=2,
     t60_range_s=(0.5, 3.0),
@@ -67,32 +42,32 @@ data = sample_stft_power(
     noise_mean_db=-40.0,
     noise_std_db=2 / 3,
     min_t60_separation_s=0.4,
-    rng=np.random.default_rng(20260817),
+    rng=np.random.default_rng(0),
 )
-rate_bounds = (t60_to_rate(3.0), t60_to_rate(0.5))
-rate_per_s, amplitudes, noise_floor = init_decay(
-    data.observed_power,
-    data.frame_time_s,
-    n_head_frames=8,
-    n_tail_frames=8,
-)
+
+rate, amplitude, floor = init_decay(data.observed_power, data.frame_time_s)
+# A longer T60 is a smaller rate, so the bound pair is (slow, fast).
+bounds = (float(t60_to_rate(3.0)), float(t60_to_rate(0.5)))
+k = data.rates_per_s.shape[-1]
 result = fit_decay(
     data.observed_power,
     data.frame_time_s,
-    np.repeat(
-        np.clip(rate_per_s, *rate_bounds)[:, np.newaxis], 2, axis=1
-    ),
-    rate_bounds_per_s=rate_bounds,
-    initial_amplitudes=np.repeat(
-        (amplitudes / 2.0)[:, :, np.newaxis], 2, axis=2
-    ),
-    initial_noise_floor=noise_floor,
-    component_weight_power=2.0,
+    np.clip(rate, *bounds)[:, None].repeat(k, axis=1),
+    rate_bounds_per_s=bounds,
+    initial_amplitudes=(amplitude / k)[:, :, None].repeat(k, axis=2),
+    initial_noise_floor=floor,
 )
 ```
 
-Run the three synthetic experiments from the repository root. Fit CLIs write NPZ/CSV
-only; sibling plot scripts read those archives:
+`result.rates_per_s` is `(F, K)`, `result.amplitudes` is `(R, F, K)`, and `result.noise_floor` is `(R, F)`. `rate_to_t60` converts rates back to T60 in seconds.
+
+For measured RIRs that already start at a common onset, use `rir_stft_power` and then the same fit. SOFA and MATLAB SRIR readers are in `experiments.datasets`.
+
+## Experiments
+
+Each fit writes one timestamped folder, `output/YYYY-MM-DD_HH-MM-SS-ffffff/`. Plot scripts read that folder; they do not refit.
+
+Synthetic checks:
 
 ```bash
 python -m experiments.synthetic.convergence
@@ -101,12 +76,9 @@ python -m experiments.synthetic.amplitude_identifiability
 python -m experiments.synthetic.plot_convergence --results output/RUN/loss_convergence_results.npz
 ```
 
-They cover one-pair convergence/loss geometry, pooled-pair decay robustness, and
-known-rate amplitude identifiability. The numerical package starts from already-read
-RIR arrays; SOFA/SRIR readers live in `experiments.datasets`. Full configurations and
-real-data commands are in [docs/EXPERIMENTS.md](docs/EXPERIMENTS.md).
+These cover loss paths for one two-slope case, decay estimates across many T60 pairs, and amplitude recovery when the rates are known. The other plot scripts follow the same `--results` pattern.
 
-The paper's main recorded-RIR application is the coupled-room transition dataset:
+Recorded coupled-room RIRs (Meeting Room to Hallway, v1.3). Start with the pilot, then the full fit:
 
 ```bash
 python -m experiments.room_to_hallway.omni --stage pilot
@@ -114,29 +86,25 @@ python -m experiments.room_to_hallway.omni --stage full
 python -m experiments.room_to_hallway.plot_omni --results output/RUN
 ```
 
-`experiments.room_to_hallway.georg_benchmarks` provides the corresponding external
-baselines. Dataset preparation and external model requirements are documented in
-[docs/EXPERIMENTS.md](docs/EXPERIMENTS.md).
+`experiments.room_to_hallway.georg_benchmarks` compares those fits with DecayFitNet and CommonSlopeAnalysis. Both stay in an external checkout; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-Install the numerical package and optional experiment/test dependencies:
+## Layout
 
-```bash
-python -m pip install -e '.[experiments,test]'
-python -m pytest
+```text
+common_slope_nmf/    model, loss, synthesis, STFT power, and SAGE
+experiments/         fit scripts, plot scripts, and dataset readers
+tests/package/       package tests
+tests/experiments/   experiment and reader tests
 ```
 
 ## Status
 
-The numerical package implements synthesis, initialization, fixed-rate amplitude SAGE,
-and independent-frequency decay SAGE, including contribution-weighted CW-SAGE.
-Results include total IS-loss and decay-rate histories, final parameter estimates, and
-optional intermediate responsibilities and profile moments. Weighted updates do not
-guarantee a monotone observed objective.
+Synthesis, initialization, fixed-rate amplitude SAGE, and per-frequency decay SAGE are implemented, including the experimental contribution-weighted (CW-SAGE) updates. A fit returns the IS-loss history, the rate history, and the final parameters. Weighted updates record that loss but do not guarantee it decreases every step.
 
-Experiment archives provide saved results and replotting. A general package-level
-checkpoint API is separate future work. Wideband localization, component selection,
-and smooth frequency trajectories remain research plans.
+Still planned: a general checkpoint API, wideband localization, automatic component selection, and smooth decay trajectories across frequency.
 
-SQUAREM and the historical synthetic experiments are preserved on `feat/squarem`.
-The three-room Treble simulation scripts, tests, and findings are preserved on
-`feat/treble-simulation`.
+Older experiments are kept on other branches: SQUAREM on `feat/squarem`, and the three-room Treble simulation on `feat/treble-simulation`.
+
+## License
+
+MIT. Notices for adapted third-party code are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
