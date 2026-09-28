@@ -16,7 +16,13 @@ V[r, f, n] = b[r, f] + sum_k a[r, f, k] * exp(-lambda[f, k] * tau[n])
 
 ## Install
 
-Python 3.10 or newer. From the repository root:
+Python 3.10 or newer.
+
+```bash
+python -m pip install common-slope-nmf
+```
+
+From a checkout, install the package with the experiment and test extras:
 
 ```bash
 python -m pip install -e '.[experiments,test]'
@@ -24,6 +30,8 @@ python -m pytest
 ```
 
 NumPy and SciPy are required. The `experiments` extra adds h5py and Matplotlib for dataset readers and plots. The `decayfitnet` extra is only for the external DecayFitNet benchmark.
+
+Publishing uses [PyPI Trusted Publishing](https://docs.pypi.org/trusted-publishers/). Register a pending publisher for project `common-slope-nmf`, owner `jeremybbq`, repository `common_slope_nmf`, workflow `publish.yml`, and environment `pypi`, and require a manual approval on that environment. Pushing a `v*` tag, such as `v0.1.0`, runs the tests, builds the sdist and wheel, and uploads them.
 
 ## Quick start
 
