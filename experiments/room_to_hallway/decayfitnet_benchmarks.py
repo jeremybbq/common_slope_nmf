@@ -20,7 +20,7 @@ from common_slope_nmf.baseline import (
 )
 from experiments._run_output import create_run_output_dir
 from experiments.datasets import load_sofa_channel
-from experiments.room_to_hallway.omni import CONDITION_FILES, DATASET_DIR
+from experiments.room_to_hallway.sage_fit import CONDITION_FILES, DATASET_DIR
 
 SAMPLE_RATE_HZ = 48_000.0
 

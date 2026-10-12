@@ -8,8 +8,8 @@ from pathlib import Path
 import numpy as np
 
 from experiments.room_to_hallway.decayfitnet_benchmarks import N_SLOPES
-from experiments.room_to_hallway.omni import LONG_SLOPE_RGB, SHORT_SLOPE_RGB
-from experiments.room_to_hallway.plot_omni import _pyplot, _save_png_and_pdf
+from experiments.room_to_hallway.sage_fit import LONG_SLOPE_RGB, SHORT_SLOPE_RGB
+from experiments.room_to_hallway.plot_sage_fit import _pyplot, _save_png_and_pdf
 
 def plot_t60_comparison(
     proposed_result_path: str | Path,

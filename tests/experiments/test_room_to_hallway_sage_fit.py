@@ -1,7 +1,7 @@
 import numpy as np
 
 from common_slope_nmf import rate_to_t60, t60_to_rate
-from experiments.room_to_hallway.omni import (
+from experiments.room_to_hallway.sage_fit import (
     LONG_SLOPE_RGB,
     SHORT_SLOPE_RGB,
     STRONG_MIXTURE_RGB,
@@ -13,7 +13,7 @@ from experiments.room_to_hallway.omni import (
     fits_are_healthy,
     rho_mixture_rgb,
 )
-from experiments.room_to_hallway.plot_omni import (
+from experiments.room_to_hallway.plot_sage_fit import (
     DISPLAY_NAMES,
     plot_amplitude_mixture,
     plot_final_rho_space_time,

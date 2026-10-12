@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 
 from common_slope_nmf import t60_to_rate
-from experiments.room_to_hallway.omni import (
+from experiments.room_to_hallway.sage_fit import (
     FLOOR_RHO_RGB,
     LONG_SLOPE_RGB,
     RHO_TARGET_FREQUENCY_HZ,
