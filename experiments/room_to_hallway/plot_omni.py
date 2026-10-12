@@ -17,6 +17,14 @@ from experiments.room_to_hallway.omni import (
     rho_mixture_rgb,
 )
 
+DISPLAY_NAMES = {
+    "room_los": "Source in Room, LOS",
+    "room_no_los": "Source in Room, no LOS",
+    "hallway_los": "Source in Hallway, LOS",
+    "hallway_no_los": "Source in Hallway, no LOS",
+}
+
+
 def _pyplot():
     """Import pyplot with a writable, process-safe cache directory."""
 
@@ -53,6 +61,16 @@ def _save_png_and_pdf(fig, output_path: str | Path) -> Path:
     fig.savefig(output, dpi=300)
     fig.savefig(output.with_suffix(".pdf"))
     return output
+
+
+def _check_conditions(conditions: tuple[str, ...]) -> tuple[str, ...]:
+    names = tuple(conditions)
+    unknown = [name for name in names if name not in DISPLAY_NAMES]
+    if not names or unknown or len(set(names)) != len(names):
+        raise ValueError(
+            "conditions must be distinct names from " + ", ".join(DISPLAY_NAMES) + "."
+        )
+    return names
 
 
 def plot_decay_times(
@@ -122,13 +140,16 @@ def plot_final_rho_space_time(
     output_path: str | Path,
     *,
     target_frequency_hz: float,
+    conditions: tuple[str, ...] = ("room_los", "hallway_los"),
 ) -> Path:
     """Plot final rho over receiver position and elapsed time at one bin.
 
     The fitted archive supplies final two-slope amplitudes/floors and RTs;
     metadata supplies frame times and room-to-hallway positions. The selected
-    bin is nearest ``target_frequency_hz``. Room/LOS and Hallway/LOS panels use blue for
-    ``rho_1``, orange for ``rho_2``, and dark gray for ``rho_0``.
+    bin is nearest ``target_frequency_hz``. One panel per entry of
+    ``conditions`` uses blue for ``rho_1``, orange for ``rho_2``, and dark gray
+    for ``rho_0``. Up to two conditions are stacked in one column; more are
+    laid out in two columns.
     """
 
     if not np.isfinite(target_frequency_hz) or target_frequency_hz <= 0.0:
@@ -170,15 +191,25 @@ def plot_final_rho_space_time(
     ).transpose(0, 2, 1)
     colors = rho_mixture_rgb(rho)
 
-    display_names = {
-        "room_los": "Source in Room, LOS",
-        "hallway_los": "Source in Hallway, LOS",
-    }
+    names = _check_conditions(conditions)
+    n_columns = 1 if len(names) <= 2 else 2
+    n_rows = -(-len(names) // n_columns)
     with plt.rc_context({"font.size": 8, "axes.labelsize": 8, "xtick.labelsize": 8, "ytick.labelsize": 8}):
-        figure = plt.figure(figsize=(3.45, 3.1))
-        grid = figure.add_gridspec(2, 1, left=0.14, right=0.98, bottom=0.19, top=0.95, hspace=0.26)
-        axes = [figure.add_subplot(grid[index, 0]) for index in range(2)]
-        for panel, (name, axis) in enumerate(zip(display_names, axes, strict=True)):
+        if n_columns == 1:
+            figure = plt.figure(figsize=(3.45, 3.1))
+            grid = figure.add_gridspec(n_rows, 1, left=0.14, right=0.98, bottom=0.19, top=0.95, hspace=0.26)
+            legend_x = 0.58
+        else:
+            figure = plt.figure(figsize=(7.1, 3.1))
+            grid = figure.add_gridspec(
+                n_rows, 2, left=0.07, right=0.99, bottom=0.19, top=0.95, hspace=0.26, wspace=0.08
+            )
+            legend_x = 0.53
+        axes = [
+            figure.add_subplot(grid[index // n_columns, index % n_columns])
+            for index in range(len(names))
+        ]
+        for panel, (name, axis) in enumerate(zip(names, axes, strict=True)):
             condition = list(condition_names).index(name)
             mask = condition_index == condition
             order = np.argsort(positions_m[mask])
@@ -189,23 +220,27 @@ def plot_final_rho_space_time(
                 extent=(x[0], x[-1], times_s[0], times_s[-1]),
             )
             axis.axvline(2.5, color="white", linewidth=1.2, linestyle="--", alpha=0.9)
-            axis.set(title=display_names[name], xlim=(0.0, 5.0), ylim=(times_s[0], times_s[-1]))
+            axis.set(title=DISPLAY_NAMES[name], xlim=(0.0, 5.0), ylim=(times_s[0], times_s[-1]))
             axis.title.set_fontsize(7)
             axis.set_xticks([0.0, 2.5, 5.0], labels=["0", "2.5", "5"])
-            if panel == 0:
+            if panel % n_columns == 0:
                 axis.set_ylabel("Elapsed time (s)")
-                axis.tick_params(axis="x", labelbottom=False)
             else:
-                axis.set_ylabel("Elapsed time (s)")
-        figure.text(0.58, 0.1, r"Room $\leftarrow\qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad\rightarrow$ Hallway", ha="center", fontsize=7)
-        figure.text(0.58, 0.1, "Receiver position (m)", ha="center", fontsize=8)
+                axis.tick_params(axis="y", labelleft=False)
+            if panel + n_columns < len(names):
+                axis.tick_params(axis="x", labelbottom=False)
+        for column in range(min(n_columns, len(names))):
+            box = axes[column].get_position()
+            label_x = 0.58 if n_columns == 1 else (box.x0 + box.x1) / 2
+            figure.text(label_x, 0.1, r"Room $\leftarrow\qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad\qquad\rightarrow$ Hallway", ha="center", fontsize=7)
+            figure.text(label_x, 0.1, "Receiver position (m)", ha="center", fontsize=8)
         figure.legend(
             handles=[
                 plt.Line2D([], [], color=SHORT_SLOPE_RGB, linewidth=3, label=r"$\rho_1$ fast decay"),
                 plt.Line2D([], [], color=LONG_SLOPE_RGB, linewidth=3, label=r"$\rho_2$ slow decay"),
                 plt.Line2D([], [], color=FLOOR_RHO_RGB, linewidth=3, label=r"$\rho_0$ floor"),
             ],
-            loc="lower center", bbox_to_anchor=(0.58, 0), ncols=3, frameon=False, fontsize=7,
+            loc="lower center", bbox_to_anchor=(legend_x, 0), ncols=3, frameon=False, fontsize=7,
         )
         output = Path(output_path).with_suffix(".png")
         output.parent.mkdir(parents=True, exist_ok=True)
@@ -222,15 +257,17 @@ def plot_amplitude_mixture(
     *,
     dynamic_range_db: float = 40.0,
     dark_background: bool = True,
+    conditions: tuple[str, ...] = ("room_no_los", "hallway_los", "hallway_no_los"),
 ) -> Path:
     """Plot both fitted slope amplitudes over position and frequency.
 
     ``result_path`` must contain two-slope amplitudes ``(R,F,2)`` and the
     corresponding receiver indices. The SOFA listener x coordinate is shown
     from 0 to 5 m, with the doorway marked at 2.5 m. A global power-dB
-    reference across all four conditions is retained. Three panels show room
-    without LOS, hallway with LOS, and hallway without LOS, followed by a
-    half-width bivariate key. Returns the PNG path; a fixed-size PDF is also saved.
+    reference across all four conditions is retained. One panel per entry of
+    ``conditions`` is followed by a half-width bivariate key. Up to three
+    conditions share one row; more are laid out in two columns with the key
+    beside the first row. Returns the PNG path; a fixed-size PDF is also saved.
     """
 
     plt = _pyplot()
@@ -257,27 +294,27 @@ def plot_amplitude_mixture(
         dynamic_range_db=dynamic_range_db,
         dark_background=dark_background,
     )
-    display_names = {
-        "room_los": "Source in Room, LOS",
-        "room_no_los": "Source in Room, no LOS",
-        "hallway_los": "Source in Hallway, LOS",
-        "hallway_no_los": "Source in Hallway, no LOS",
-    }
-
-    fig = plt.figure(figsize=(7.10, 1.7))
+    names = _check_conditions(conditions)
+    n_columns = len(names) if len(names) <= 3 else 2
+    n_rows = -(-len(names) // n_columns)
+    height = 1.7 + 1.55 * (n_rows - 1)
+    fig = plt.figure(figsize=(7.10, height))
     grid = fig.add_gridspec(
-        1,
-        4,
-        width_ratios=(1, 1, 1, 0.5),
+        n_rows,
+        n_columns + 1,
+        width_ratios=(*(1,) * n_columns, 0.5),
         left=0.07,
         right=0.93,
-        bottom=0.25,
-        top=0.86,
+        bottom=0.425 / height,
+        top=1.0 - 0.238 / height,
         wspace=0.12,
+        hspace=0.3,
     )
-    axes = [fig.add_subplot(grid[0, index]) for index in range(3)]
-    selected_names = ("room_no_los", "hallway_los", "hallway_no_los")
-    for panel, (name, axis) in enumerate(zip(selected_names, axes, strict=True)):
+    axes = [
+        fig.add_subplot(grid[index // n_columns, index % n_columns])
+        for index in range(len(names))
+    ]
+    for panel, (name, axis) in enumerate(zip(names, axes, strict=True)):
         condition = list(condition_names).index(name)
         mask = condition_index == condition
         order = np.argsort(positions_m[mask])
@@ -291,7 +328,7 @@ def plot_amplitude_mixture(
             extent=(x[0], x[-1], frequencies_hz[0], frequencies_hz[-1]),
         )
         axis.axvline(2.5, color="white", linewidth=1.2, linestyle="--", alpha=0.9)
-        axis.set_title(display_names[name], fontsize=8)
+        axis.set_title(DISPLAY_NAMES[name], fontsize=8)
         axis.set_xlim(0.0, 5.0)
         axis.set_yscale("log")
         axis.set_ylim(frequencies_hz[0], frequencies_hz[-1])
@@ -303,19 +340,21 @@ def plot_amplitude_mixture(
         axis.set_yticks([], minor=True)
         axis.tick_params(axis="both", labelsize=8)
         axis.set_xticks([0, 2.5, 5], labels=["0", "2.5", "5"])
-        if panel == 0:
+        if panel % n_columns == 0:
             axis.set_ylabel("Frequency (Hz)", fontsize=9)
         else:
             axis.tick_params(axis="y", labelleft=False)
+        if panel + n_columns < len(names):
+            axis.tick_params(axis="x", labelbottom=False)
 
     fig.text(
-        (axes[0].get_position().x0 + axes[-1].get_position().x1) / 2,
+        (axes[0].get_position().x0 + axes[n_columns - 1].get_position().x1) / 2,
         0.025,
         "Receiver position (m)",
         ha="center",
         fontsize=9,
     )
-    key_axis = fig.add_subplot(grid[0, 3])
+    key_axis = fig.add_subplot(grid[0, n_columns])
     levels_db = np.linspace(-dynamic_range_db, 0.0, 151)
     short_db, long_db = np.meshgrid(levels_db, levels_db)
     key_amplitudes = 10.0 ** (
@@ -353,14 +392,20 @@ def plot_run(
     run_dir: Path,
     *,
     rho_frequency_hz: float = RHO_TARGET_FREQUENCY_HZ,
+    conditions: tuple[str, ...] | None = None,
     show: bool = False,
 ) -> list[Path]:
-    """Write two-slope figures for every configuration NPZ in a run directory."""
+    """Write two-slope figures for every configuration NPZ in a run directory.
+
+    ``conditions`` selects the source conditions drawn in the rho and
+    amplitude maps; by default each map keeps its paper layout.
+    """
 
     run_dir = Path(run_dir)
     if not run_dir.is_dir():
         raise FileNotFoundError(run_dir)
     metadata_path = run_dir / "analysis_metadata.npz"
+    selection = {} if conditions is None else {"conditions": tuple(conditions)}
     saved: list[Path] = []
     for result_path in sorted(run_dir.glob("*_results.npz")):
         with np.load(result_path, allow_pickle=False) as archive:
@@ -378,6 +423,15 @@ def plot_run(
                     metadata_path,
                     run_dir / f"{prefix}_rho_space_time",
                     target_frequency_hz=rho_frequency_hz,
+                    **selection,
+                )
+            )
+            saved.append(
+                plot_amplitude_mixture(
+                    result_path,
+                    metadata_path,
+                    run_dir / f"{prefix}_amplitudes",
+                    **selection,
                 )
             )
     if show:
@@ -399,6 +453,12 @@ def main() -> None:
         default=RHO_TARGET_FREQUENCY_HZ,
         help="Nearest fitted frequency used for the final rho space-time map.",
     )
+    parser.add_argument(
+        "--conditions",
+        nargs="+",
+        choices=tuple(DISPLAY_NAMES),
+        help="Source conditions in the rho and amplitude maps; default is the paper layout.",
+    )
     parser.add_argument("--show", action="store_true")
     args = parser.parse_args()
     if not np.isfinite(args.rho_frequency_hz) or args.rho_frequency_hz <= 0.0:
@@ -406,6 +466,7 @@ def main() -> None:
     paths = plot_run(
         args.results,
         rho_frequency_hz=args.rho_frequency_hz,
+        conditions=args.conditions,
         show=args.show,
     )
     print(f"source={args.results.resolve()}")

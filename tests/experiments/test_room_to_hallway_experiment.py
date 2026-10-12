@@ -10,12 +10,14 @@ from experiments.room_to_hallway.omni import (
     FLOOR_RHO_RGB,
     amplitude_mixture_rgb,
     initial_parameters,
-    nearest_frequency_indices,
-    pilot_is_healthy,
-    stratified_receiver_indices,
+    fits_are_healthy,
     rho_mixture_rgb,
 )
-from experiments.room_to_hallway.plot_omni import plot_final_rho_space_time
+from experiments.room_to_hallway.plot_omni import (
+    DISPLAY_NAMES,
+    plot_amplitude_mixture,
+    plot_final_rho_space_time,
+)
 
 
 def test_amplitude_mixture_is_white_when_weak_and_uses_both_hues():
@@ -99,6 +101,44 @@ def test_final_rho_plot_reconstructs_from_saved_fit(tmp_path):
     assert path.with_suffix(".pdf").is_file()
 
 
+def test_maps_accept_all_four_conditions(tmp_path):
+    import pytest
+
+    result_path = tmp_path / "fit.npz"
+    metadata_path = tmp_path / "metadata.npz"
+    np.savez(
+        result_path,
+        estimated_t60_s=np.array([[0.6, 1.2], [0.5, 1.1]]),
+        estimated_amplitudes=np.full((8, 2, 2), 0.5),
+        estimated_noise_floor=np.full((8, 2), 1e-3),
+        frequencies_hz=np.array([1_000.0, 2_000.0]),
+        receiver_indices=np.arange(8),
+    )
+    np.savez(
+        metadata_path,
+        times_s=np.array([0.0, 0.01, 0.02]),
+        condition_names=np.array(list(DISPLAY_NAMES)),
+        rir_condition_index=np.repeat(np.arange(4), 2),
+        listener_positions_m=np.column_stack((np.linspace(0.0, 5.0, 8), np.zeros(8), np.zeros(8))),
+    )
+    conditions = tuple(DISPLAY_NAMES)
+
+    rho_path = plot_final_rho_space_time(
+        result_path, metadata_path, tmp_path / "rho", target_frequency_hz=2_000.0,
+        conditions=conditions,
+    )
+    amplitude_path = plot_amplitude_mixture(
+        result_path, metadata_path, tmp_path / "amplitudes", conditions=conditions
+    )
+
+    assert rho_path.is_file() and rho_path.with_suffix(".pdf").is_file()
+    assert amplitude_path.is_file() and amplitude_path.with_suffix(".pdf").is_file()
+    with pytest.raises(ValueError):
+        plot_amplitude_mixture(
+            result_path, metadata_path, tmp_path / "bad", conditions=("kitchen",)
+        )
+
+
 def test_initial_parameters_split_signal_power_equally_with_floor():
     times_s = np.arange(250, dtype=np.float64) * 256.0 / 48_000.0
     rates = t60_to_rate(np.array([0.9]))
@@ -133,22 +173,7 @@ def test_log_spaced_initialization_is_ordered_and_bounded():
     np.testing.assert_allclose(t60_s[1] ** 2, t60_s[0] * t60_s[2])
 
 
-def test_frequency_and_receiver_pilot_selection_are_deterministic():
-    frequencies = np.arange(2, 86, dtype=np.float64) * 93.75
-    indices = nearest_frequency_indices(
-        frequencies, np.array([250.0, 500.0, 1000.0, 8000.0])
-    )
-    np.testing.assert_array_equal(
-        frequencies[indices], [281.25, 468.75, 1031.25, 7968.75]
-    )
-
-    conditions = np.repeat(np.arange(4), 101)
-    selected = stratified_receiver_indices(conditions, 25)
-    assert selected.size == 100
-    np.testing.assert_array_equal(np.bincount(conditions[selected]), np.full(4, 25))
-
-
-def test_pilot_health_checks_weighted_objective_growth():
+def test_fit_health_checks_weighted_objective_growth():
     def fit(final_objective):
         return FrequencyFit(
             frequency_index=0,
@@ -166,5 +191,5 @@ def test_pilot_health_checks_weighted_objective_growth():
             converged=False,
         )
 
-    assert pilot_is_healthy([fit(109.0)])
-    assert not pilot_is_healthy([fit(111.0)])
+    assert fits_are_healthy([fit(109.0)])
+    assert not fits_are_healthy([fit(111.0)])
