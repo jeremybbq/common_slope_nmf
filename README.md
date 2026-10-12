@@ -1,8 +1,8 @@
 # Common-slope joint estimation of decay and amplitude using parameterized nonnegative matrix factorization
 
-Estimate shared frequency dependent decay rates (or reverberation time, RT), and the amplitudess of the decays in each recording of room impulse responses (RIRs).
+Estimate shared frequency dependent decay rates (or reverberation time, RT), and the amplitudes of the decays in each recording of room impulse responses (RIRs).
 
-![A fixed-frequency slice of the stacked RIR spectrograms forms a space–time power matrix, which is factored into per-position amplitudes and exponential decays shared by every position](assets/nmf-overview.png)
+![A fixed-frequency slice of the stacked RIR spectrograms forms a space–time power matrix, which is factored into per-position amplitudes and exponential decays shared by every position](https://raw.githubusercontent.com/jeremybbq/common_slope_nmf/main/assets/nmf-overview.png)
 
 At one frequency, the powers of all RIRs form a space–time matrix (blue frame). It is factored into per-position amplitudes and a few exponential decays shared by every position; the right panel shows one RIR (green frame) with its two fitted decays.
 
@@ -96,8 +96,8 @@ uv run python -m experiments.room_to_hallway.sage_fit --dataset-dir PATH
 uv run python -m experiments.room_to_hallway.plot_sage_fit --results output/RUN
 ```
 
-`experiments.room_to_hallway.decayfitnet_benchmarks` compares these fits with DecayFitNet and CommonSlopeAnalysis. It needs `uv sync --extra decayfitnet` and an external DecayFitNet checkout; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+`experiments.room_to_hallway.decayfitnet_benchmarks` compares these fits with DecayFitNet and CommonSlopeAnalysis. It needs `uv sync --extra decayfitnet` and an external DecayFitNet checkout; see [THIRD_PARTY_NOTICES.md](https://github.com/jeremybbq/common_slope_nmf/blob/main/THIRD_PARTY_NOTICES.md).
 
 ## License
 
-MIT. Notices for adapted third-party code are in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+MIT. Notices for adapted third-party code are in [THIRD_PARTY_NOTICES.md](https://github.com/jeremybbq/common_slope_nmf/blob/main/THIRD_PARTY_NOTICES.md).
