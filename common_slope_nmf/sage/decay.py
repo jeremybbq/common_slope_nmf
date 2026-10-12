@@ -8,6 +8,7 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 from ..loss import is_divergence
+from ..model import t60_to_rate
 from ._util import (
     _check_controls,
     _has_converged,
@@ -16,6 +17,8 @@ from ._util import (
     _real_array,
 )
 from .rates import update_rates_newton
+
+DEFAULT_RATE_BOUNDS_PER_S = (float(t60_to_rate(10.0)), float(t60_to_rate(0.1)))
 
 
 @dataclass(frozen=True)
@@ -51,7 +54,7 @@ def fit_decay(
     frame_time_s: ArrayLike,
     initial_rates_per_s: ArrayLike,
     *,
-    rate_bounds_per_s: tuple[float, float],
+    rate_bounds_per_s: tuple[float, float] = DEFAULT_RATE_BOUNDS_PER_S,
     initial_amplitudes: ArrayLike,
     initial_noise_floor: ArrayLike | None = None,
     estimate_noise_floor: bool = True,
@@ -73,7 +76,7 @@ def fit_decay(
     initial_rates_per_s
         Positive initial energy-decay rates, shape ``(F, K)``.
     rate_bounds_per_s
-        Pair ``(lower, upper)`` of positive rate bounds in inverse seconds.
+        Pair ``(lower, upper)`` of positive rate bounds in inverse seconds. The default corresponds to ``T60`` between 0.1 and 10 seconds.
     initial_amplitudes
         Positive unit-origin variance amplitudes, shape ``(R, F, K)``.
     initial_noise_floor
