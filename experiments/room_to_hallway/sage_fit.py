@@ -8,10 +8,10 @@ hop, 512-point FFT, and no boundary padding.  It discards the first 10 and last
 20 of the 280 complete frames, leaving 250 frames and resetting the first
 retained frame to decay time zero.
 
-The default pilot compares K=1,2,3 and two deterministic initializations at six
-representative FFT bins.  A full fit is a separate explicit stage so pilot
-results can be reviewed first.  Contribution-weighted CW-SAGE is experimental and its
-observed IS objective is monitored rather than assumed to be monotone.
+The fit covers every cached FFT bin and all RIRs, once per requested component
+count and deterministic initialization.  Contribution-weighted CW-SAGE is
+experimental and its observed IS objective is monitored rather than assumed to
+be monotone.
 """
 
 
@@ -81,10 +81,6 @@ DISCARD_FINAL_FRAMES = 20
 MINIMUM_FREQUENCY_HZ = 187.5
 
 MAXIMUM_FREQUENCY_HZ = 8_000.0
-
-PILOT_TARGET_FREQUENCIES_HZ = np.array(
-    [250.0, 500.0, 1_000.0, 2_000.0, 4_000.0, 8_000.0]
-)
 
 T60_BOUNDS_S = (0.15, 3.0)
 
@@ -358,36 +354,6 @@ def initial_parameters(
     )
 
 
-def nearest_frequency_indices(
-    frequencies_hz: np.ndarray, targets_hz: np.ndarray
-) -> np.ndarray:
-    """Return unique FFT-bin indices nearest to requested frequencies."""
-
-    frequencies = np.asarray(frequencies_hz, dtype=np.float64)
-    targets = np.asarray(targets_hz, dtype=np.float64)
-    if frequencies.ndim != 1 or frequencies.size == 0:
-        raise ValueError("frequencies_hz must have non-empty shape (F,).")
-    if targets.ndim != 1 or targets.size == 0:
-        raise ValueError("targets_hz must have non-empty shape (Q,).")
-    indices = [int(np.argmin(np.abs(frequencies - target))) for target in targets]
-    return np.asarray(list(dict.fromkeys(indices)), dtype=np.int64)
-
-
-def stratified_receiver_indices(
-    condition_index: np.ndarray, count_per_condition: int
-) -> np.ndarray:
-    """Select evenly spaced RIR indices within every source condition."""
-
-    condition_index = np.asarray(condition_index)
-    selected: list[np.ndarray] = []
-    for condition in np.unique(condition_index):
-        available = np.flatnonzero(condition_index == condition)
-        count = min(count_per_condition, available.size)
-        local = np.linspace(0, available.size - 1, count).astype(np.int64)
-        selected.append(available[np.unique(local)])
-    return np.concatenate(selected).astype(np.int64, copy=False)
-
-
 def _fit_one_frequency(
     cache_path: str,
     metadata_path: str,
@@ -524,7 +490,7 @@ def run_frequency_fits(
     return sorted(fits, key=lambda fit: fit.frequency_index)
 
 
-def pilot_is_healthy(fits: list[FrequencyFit]) -> bool:
+def fits_are_healthy(fits: list[FrequencyFit]) -> bool:
     """Check finite parameters and cap weighted objective growth at 10 percent."""
 
     if not fits:
@@ -728,25 +694,23 @@ def _arguments() -> argparse.Namespace:
     parser.add_argument("--output-root", type=Path, default=Path("output"))
     parser.add_argument(
         "--stage",
-        choices=("prepare", "pilot", "full"),
-        default="pilot",
-        help="The full stage is deliberately separate from pilot review.",
+        choices=("prepare", "full"),
+        default="full",
+        help="prepare only builds the STFT power cache; full also runs the fit.",
     )
     parser.add_argument(
         "--rebuild-cache",
         action="store_true",
         help="Recompute the STFT cache even when compatible files exist.",
     )
-    parser.add_argument("--pilot-rirs-per-condition", type=int, default=25)
-    parser.add_argument("--pilot-components", nargs="+", type=int, default=[1, 2, 3])
     parser.add_argument("--full-components", nargs="+", type=int, default=[2])
     parser.add_argument(
         "--initializations",
         nargs="+",
         choices=("equal-log-linear", "log-spaced"),
-        default=["equal-log-linear", "log-spaced"],
+        default=["equal-log-linear"],
+        help="equal-log-linear starts every decay at the pooled linear-fit T60.",
     )
-    parser.add_argument("--pilot-max-iter", type=int, default=500)
     parser.add_argument("--max-iter", type=int, default=2_000)
     parser.add_argument("--tol", type=float, default=1e-6)
     parser.add_argument("--jobs", type=int, default=8)
@@ -757,18 +721,11 @@ def _arguments() -> argparse.Namespace:
         help="Fit only this many highest bins during the full stage.",
     )
     args = parser.parse_args()
-    for name in (
-        "pilot_rirs_per_condition",
-        "pilot_max_iter",
-        "max_iter",
-        "jobs",
-    ):
+    for name in ("max_iter", "jobs"):
         if getattr(args, name) <= 0:
             parser.error(f"--{name.replace('_', '-')} must be positive")
-    for name in ("pilot_components", "full_components"):
-        values = getattr(args, name)
-        if not values or any(value <= 0 for value in values):
-            parser.error(f"--{name.replace('_', '-')} must contain positive integers")
+    if not args.full_components or any(value <= 0 for value in args.full_components):
+        parser.error("--full-components must contain positive integers")
     if not np.isfinite(args.tol) or args.tol < 0.0:
         parser.error("--tol must be finite and non-negative")
     if args.highest_bins < 0:
@@ -794,7 +751,6 @@ def main() -> None:
     power = np.load(args.cache, mmap_mode="r", allow_pickle=False)
     with np.load(args.cache_metadata, allow_pickle=False) as metadata:
         frequencies_hz = np.asarray(metadata["frequencies_hz"])
-        condition_index = np.asarray(metadata["rir_condition_index"])
         run_metadata = {name: metadata[name].copy() for name in metadata.files}
     np.savez_compressed(
         output_dir / "analysis_metadata.npz",
@@ -804,33 +760,12 @@ def main() -> None:
         power_cache=np.asarray(str(args.cache.resolve())),
     )
 
-    if args.stage == "pilot":
-        frequency_indices = nearest_frequency_indices(
-            frequencies_hz, PILOT_TARGET_FREQUENCIES_HZ
-        )
-        receiver_indices = stratified_receiver_indices(
-            condition_index, args.pilot_rirs_per_condition
-        )
-        configurations = _unique_configurations(
-            args.pilot_components, args.initializations
-        )
-        max_iter = args.pilot_max_iter
-        print(
-            "pilot FFT bins: "
-            + ", ".join(f"{frequencies_hz[index]:g}" for index in frequency_indices)
-            + " Hz",
-            flush=True,
-        )
-    else:
-        if args.highest_bins > frequencies_hz.size:
-            raise ValueError("--highest-bins exceeds the cached frequency count.")
-        first = frequencies_hz.size - args.highest_bins if args.highest_bins else 0
-        frequency_indices = np.arange(first, frequencies_hz.size, dtype=np.int64)
-        receiver_indices = np.arange(power.shape[0], dtype=np.int64)
-        configurations = _unique_configurations(
-            args.full_components, args.initializations
-        )
-        max_iter = args.max_iter
+    if args.highest_bins > frequencies_hz.size:
+        raise ValueError("--highest-bins exceeds the cached frequency count.")
+    first = frequencies_hz.size - args.highest_bins if args.highest_bins else 0
+    frequency_indices = np.arange(first, frequencies_hz.size, dtype=np.int64)
+    receiver_indices = np.arange(power.shape[0], dtype=np.int64)
+    configurations = _unique_configurations(args.full_components, args.initializations)
 
     health: list[tuple[str, bool]] = []
     for n_components, initialization in configurations:
@@ -842,13 +777,13 @@ def main() -> None:
             receiver_indices,
             n_components,
             initialization,
-            max_iter,
+            args.max_iter,
             args.tol,
             args.jobs,
             output_dir / f"{name}_frequency_results",
         )
-        save_summary(fits, receiver_indices, max_iter, output_dir, name)
-        health.append((name, pilot_is_healthy(fits)))
+        save_summary(fits, receiver_indices, args.max_iter, output_dir, name)
+        health.append((name, fits_are_healthy(fits)))
 
     with (output_dir / "configuration_health.csv").open(
         "w", newline="", encoding="utf-8"

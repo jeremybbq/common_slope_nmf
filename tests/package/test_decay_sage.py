@@ -249,6 +249,34 @@ def test_decay_and_floor_updates_recover_separated_components():
     np.testing.assert_allclose(fitted_variance, power, rtol=2e-12)
 
 
+def test_fit_decay_default_rate_bounds_cover_t60_from_100_ms_to_10_s():
+    times_s = np.arange(81, dtype=np.float64) * 0.01
+    true_rates_per_s = np.array([[4.0], [9.0]])
+    true_amplitudes = np.array([[[0.7], [1.2]], [[1.3], [0.4]]])
+    power = exponential_variance(times_s, true_rates_per_s, true_amplitudes)
+
+    result = fit_decay(
+        power,
+        times_s,
+        np.full_like(true_rates_per_s, 6.0),
+        initial_amplitudes=np.ones_like(true_amplitudes),
+        estimate_noise_floor=False,
+        max_iter=2,
+        tol=0.0,
+    )
+
+    np.testing.assert_allclose(result.rates_per_s, true_rates_per_s, rtol=3e-11)
+    for outside_t60_s in (0.05, 20.0):
+        with pytest.raises(ValueError, match="within rate bounds"):
+            fit_decay(
+                power,
+                times_s,
+                np.full_like(true_rates_per_s, t60_to_rate(outside_t60_s)),
+                initial_amplitudes=np.ones_like(true_amplitudes),
+                estimate_noise_floor=False,
+            )
+
+
 def test_fit_decay_rejects_invalid_rate_bounds():
     power = np.ones((2, 3, 10))
     times_s = np.arange(10, dtype=np.float64) * 0.01

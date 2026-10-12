@@ -20,7 +20,7 @@ from common_slope_nmf.baseline import (
 )
 from experiments._run_output import create_run_output_dir
 from experiments.datasets import load_sofa_channel
-from experiments.room_to_hallway.omni import CONDITION_FILES, DATASET_DIR
+from experiments.room_to_hallway.sage_fit import CONDITION_FILES, DATASET_DIR
 
 SAMPLE_RATE_HZ = 48_000.0
 
@@ -210,7 +210,7 @@ def run_one_band(
     band_hz: float,
     decayfitnet,
 ) -> dict[str, np.ndarray]:
-    """Run both Georg baselines for one band and return NPZ-ready arrays."""
+    """Run DecayFitNet and CommonSlopeAnalysis for one band and return NPZ-ready arrays."""
 
     if rirs.ndim != 2 or rirs.shape[0] > rirs.shape[1]:
         raise ValueError(
@@ -325,7 +325,7 @@ def save_combined_results(
 
     model_path = model_dir / f"DecayFitNet_{N_SLOPES}slopes_v10.onnx"
     transform_path = model_dir / f"input_transform_{N_SLOPES}slopes.pkl"
-    output_path = output_dir / "room_to_hallway_georg_benchmarks.npz"
+    output_path = output_dir / "room_to_hallway_decayfitnet_benchmarks.npz"
     np.savez_compressed(
         output_path,
         **band_results,
@@ -415,7 +415,7 @@ def main() -> None:
             float(band_hz),
             decayfitnet,
         )
-        partial_path = output_dir / f"georg_benchmark_{int(band_hz):05d}_hz.npz"
+        partial_path = output_dir / f"decayfitnet_benchmark_{int(band_hz):05d}_hz.npz"
         np.savez_compressed(partial_path, **result)
         partial_paths.append(partial_path)
         print(f"saved checkpoint {partial_path.name}", flush=True)

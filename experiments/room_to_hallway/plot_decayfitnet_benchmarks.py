@@ -1,5 +1,5 @@
 
-"""Plots comparing Georg baselines with room-to-hallway SAGE fits."""
+"""Plots comparing DecayFitNet and CommonSlopeAnalysis baselines with room-to-hallway SAGE fits."""
 
 from __future__ import annotations
 
@@ -7,16 +7,16 @@ from pathlib import Path
 
 import numpy as np
 
-from experiments.room_to_hallway.georg_benchmarks import N_SLOPES
-from experiments.room_to_hallway.omni import LONG_SLOPE_RGB, SHORT_SLOPE_RGB
-from experiments.room_to_hallway.plot_omni import _pyplot, _save_png_and_pdf
+from experiments.room_to_hallway.decayfitnet_benchmarks import N_SLOPES
+from experiments.room_to_hallway.sage_fit import LONG_SLOPE_RGB, SHORT_SLOPE_RGB
+from experiments.room_to_hallway.plot_sage_fit import _pyplot, _save_png_and_pdf
 
 def plot_t60_comparison(
     proposed_result_path: str | Path,
     benchmark_result_path: str | Path,
     output_path: str | Path,
 ) -> Path:
-    """Overlay bandwise Georg baselines on the proposed-method T60 curves.
+    """Overlay bandwise DecayFitNet and CommonSlopeAnalysis baselines on the proposed-method T60 curves.
 
     Parameters
     ----------
@@ -204,7 +204,7 @@ def plot_t60_comparison(
 
 
 def main() -> None:
-    """Overlay Georg baselines on a proposed two-slope T60 result."""
+    """Overlay DecayFitNet and CommonSlopeAnalysis baselines on a proposed two-slope T60 result."""
 
     import argparse
 
